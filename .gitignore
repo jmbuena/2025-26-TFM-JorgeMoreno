@@ -1,0 +1,10 @@
+# Python files
+.venv
+__pycache__/
+*.pyc
+
+# Dataset images
+students_landmarks/images/
+
+# Models
+students_landmarks/data/
