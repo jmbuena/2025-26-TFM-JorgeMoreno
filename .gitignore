@@ -8,3 +8,5 @@ students_landmarks/images/
 
 # Models
 students_landmarks/data/
+*.onnx
+*.onnx.data
