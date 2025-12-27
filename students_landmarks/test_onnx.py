@@ -1,54 +1,55 @@
 import cv2
 import numpy as np
 import onnxruntime
-import torch
 
-from src.dataloader import Mode, MyDataset
 from images_framework.src.constants import Modes
 from src.students_landmarks import StudentsLandmarks
-from convert_to_onnx import load_first_annotation, parse_options
+from src.utils import get_one_image_from_dataset, parse_common_onnx_options
 
 
-filepath = "ModelMerged.onnx"
+def main():
+	unknown, args = parse_common_onnx_options()
+	anns_file = args.anns_file
 
-ort_session = onnxruntime.InferenceSession(filepath)
-input_name = ort_session.get_inputs()[0].name
+	# Load the model
+	sa = StudentsLandmarks('')
+	sa.parse_options(unknown)
+	sa.load(Modes.TEST)
 
-unknown, args = parse_options()
-anns_file = args.anns_file
+	# Get one image to test the dataset
+	img = get_one_image_from_dataset(anns_file=anns_file, studentLandmarks=sa)
+	original_image = img.copy()
 
-sa = StudentsLandmarks('')
-sa.parse_options(unknown)
-sa.load(Modes.TEST)
+	# Add the batch dimension to the image
+	img = np.expand_dims(img, axis=0)
 
-anns = load_first_annotation(anns_file)
-dataset_train = MyDataset(anns, sa.indices, sa.regressor, sa.width, sa.height, Mode.TEST)
+	# Start & run the inference
+	ort_session = onnxruntime.InferenceSession(args.onnx_path)
+	ort_outs = ort_session.run(None, {
+		"x": img,
+	})
+	output = ort_outs[0][0]
 
-img: np.ndarray = dataset_train[0]["img"]
-img = img.astype(np.float32)
-original_image = img.copy()
+	# Fix the original image to show using OpenCV
+	original_image = np.transpose(original_image, (1, 2, 0))
+	original_image = np.ascontiguousarray(original_image)
+	original_image = (original_image * 255).clip(0, 255).astype(np.uint8)
+	original_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
 
-img = np.expand_dims(img, axis=0)
-print(img.shape)
+	original_image = cv2.resize(original_image, (800, 800), interpolation=cv2.INTER_CUBIC)
 
-ort_outs = ort_session.run(None, {
-	"x": img,
-})
+	width, height, _ = original_image.shape
 
-original_image = np.transpose(original_image, (1, 2, 0))
-original_image = np.ascontiguousarray(original_image)
-original_image = (original_image * 255).clip(0, 255).astype(np.uint8)
-print(original_image.shape, " -- ", original_image.dtype)
+	# Process each pair of points as (x, y) coords
+	for index in range(0, len(output), 2):
+		x, y = int(output[index] * width), int(output[index + 1] * height)
 
-width, height, _ = original_image.shape
+		cv2.circle(original_image, (x, y), radius=2, color=(0, 0, 255), thickness=-1)
 
-output = ort_outs[0][0]
-for index in range(0, len(output), 2):
-	x, y = int(output[index] * width), int(output[index + 1] * height)
+	# Show the resulting image
+	cv2.imshow("test", original_image)
+	cv2.waitKey(0)
 
-	print((x, y))
 
-	cv2.circle(original_image, (x, y), radius=2, color=(0, 0, 255), thickness=-1)
-
-cv2.imshow("test", original_image)
-cv2.waitKey(0)
+if __name__ == "__main__":
+	main()
