@@ -41,10 +41,10 @@ def main():
 	width, height, _ = original_image.shape
 
 	# Process each pair of points as (x, y) coords
-	for index in range(0, len(output), 2):
-		x, y = int(output[index] * width), int(output[index + 1] * height)
+	# for index in range(0, len(output), 2):
+	# 	x, y = int(output[index] * width), int(output[index + 1] * height)
 
-		cv2.circle(original_image, (x, y), radius=2, color=(0, 0, 255), thickness=-1)
+	# 	cv2.circle(original_image, (x, y), radius=2, color=(0, 0, 255), thickness=-1)
 
 	# Show the resulting image
 	cv2.imshow("test", original_image)
