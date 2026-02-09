@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Prototipo TFM</title>
+	<!-- <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+
+	<script>
+		async function main() {
+			// create a new session and load the specific model.
+			//
+			// the model in this example contains a single MatMul node
+			// it has 2 inputs: 'a'(float32, 3x4) and 'b'(float32, 4x3)
+			// it has 1 output: 'c'(float32, 3x3)
+			const session = await ort.InferenceSession.create('./assets/models/ResNetMerged.onnx');
+			console.log(session);
+		}
+		main();
+	</script> -->
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="http://localhost:5173/src/main.ts"></script>
+  </body>
+</html>
