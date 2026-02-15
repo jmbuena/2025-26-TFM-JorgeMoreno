@@ -20,7 +20,7 @@ export class ClassificationModel {
 		// ort.env.wasm.simd = true;
 		// ort.env.wasm.numThreads = 4;
 
-		console.log("BEFORE")
+		console.log("Starting model...")
 
 		// const baseModelResponse = await fetch("assets/models/ResNet.onnx");
 		// const baseModelBytes = await baseModelResponse.bytes();

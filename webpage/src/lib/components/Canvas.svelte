@@ -5,7 +5,7 @@
     import { drawFacePoints } from "../ai/FaceHelpers";
 	import { ClassificationModel } from "../ai/RunModel";
 	import ClassificationResult from "./ClassificationResult.svelte";
-	import { imageDataToTensor, extractDrawing, showImageDataInCanvas, matToImageData, resizeImage } from "../ai/AiHelpers";
+	import { imageDataToTensor, extractDrawing, showImageDataInCanvas, matToImageData, resizeImage, rgbToBgr } from "../ai/AiHelpers";
 
 	let canvas: HTMLCanvasElement;
 	let previewCanvas: HTMLCanvasElement;
@@ -103,7 +103,6 @@
 		const files: Array<File> = (event.target! as any).files as Array<File>;
 
 		const file = files[0];
-
 		const offscreenContext = await drawFileToCanvas(file);
 
 		const imageData = offscreenContext.getImageData(
@@ -114,6 +113,7 @@
 		);
 
 		const originalMat = cv.matFromImageData(imageData);
+
 		const faceMat = await detectFace(originalMat)
 			.catch((error) => console.error("ERROR: " + error));
 
@@ -122,7 +122,21 @@
 			return;
 		}
 
-		showImageDataInCanvas(matToImageData(resizeImage(faceMat, [512, 512])), ctx);
+		error = undefined;
+
+		// const faceMatBgr = rgbToBgr(faceMat);
+
+		showImageDataInCanvas(
+			matToImageData(
+				resizeImage(
+					faceMat,
+					[512, 512]
+				)
+			),
+			ctx
+		);
+
+		console.log(faceMat.type());
 
 		const resizedImageData = matToImageData(resizeImage(faceMat, [256, 256]));
 
@@ -199,7 +213,7 @@
 				bind:this={canvas}
 				width="512"
 				height="512"
-				class="bg-neutral-700 border rounded cursor-crosshair"
+				class="bg-neutral-700 border rounded"
 			></canvas>
 		
 			<input type="file" onchange={runModelFromImage as any}>

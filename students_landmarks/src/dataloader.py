@@ -93,4 +93,30 @@ class MyDataset(Dataset):
         if self.mode != Mode.TEST and sample['landmarks'].size > 0:
             sample['landmarks'][:, 0] /= float(self.width)
             sample['landmarks'][:, 1] /= float(self.height)
+
+        # print("----------------------------")
+        # print(sample)
+        # print(image.shape)
+        # bb = self.bboxes[idx]
+        # en_bb = sample["bbox_enlarged"]
+        # print(bb)
+
+        # print("--------")
+        # print(
+        #     en_bb[0] / image.shape[1],
+        #     en_bb[1] / image.shape[0],
+        #     en_bb[2] / image.shape[1],
+        #     en_bb[3] / image.shape[0],
+        # )
+
+        # # cv2.circle(image, (int(en_bb[0]), int(en_bb[1])), radius=5, color=(255, 0, 255), thickness=-1)
+        # # cv2.circle(image, (int(en_bb[2]), int(en_bb[3])), radius=5, color=(255, 0, 255), thickness=-1)
+
+        # # cv2.imshow("asd", cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        # cv2.imshow("asd", image[int(en_bb[1]):int(en_bb[3]), int(en_bb[0]):int(en_bb[2])])
+        # # cv2.imshow("asd", image[int(bb[1]):int(bb[3]), int(bb[0]):int(bb[2])])
+        # cv2.waitKey(0)
+
+        # exit(1)
+
         return sample

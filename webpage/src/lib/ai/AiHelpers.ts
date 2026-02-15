@@ -1,6 +1,6 @@
 import * as ort from "onnxruntime-web";
 import { cv } from "./LoadModel";
-import type { Mat, Size } from "@techstark/opencv-js";
+import { COLOR_RGB2BGR, type Mat, type Size } from "@techstark/opencv-js";
 
 
 export async function showImageDataInCanvas(image: ImageData, canvasCtx: CanvasRenderingContext2D): Promise<void> {
@@ -152,4 +152,12 @@ export function calculateSoftmax(network_outputs: Float32Array<ArrayBufferLike>)
 	}
 
 	return probabilities;
+}
+
+
+export function rgbToBgr(src: Mat): Mat {
+	const output: Mat = new cv.Mat();
+	cv.cvtColor(src, output, cv.COLOR_RGBA2BGRA, 0);
+
+	return output;
 }
