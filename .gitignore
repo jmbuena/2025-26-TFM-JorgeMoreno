@@ -10,3 +10,5 @@ students_landmarks/images/
 students_landmarks/data/
 *.onnx
 *.onnx.data
+
+api/
