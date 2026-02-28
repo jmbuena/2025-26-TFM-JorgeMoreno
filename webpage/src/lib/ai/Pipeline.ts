@@ -2,7 +2,7 @@ import { detectFace } from "./HaarCascade";
 import type { AnnotationRow } from "./Csv";
 import { ClassificationModel } from "./RunModel";
 import { Landmark, processLandmarks } from "./Landmarks";
-import { drawFacePoints, drawFacePointsWithOffset } from "./FaceHelpers";
+import { Color, drawFacePoints, drawFacePointsWithOffset } from "./FaceHelpers";
 import { copyMat, imageDataToMat, imageDataToTensor, matToImageData, resizeImage, type ImageSize } from "./AiHelpers";
 
 
@@ -24,14 +24,14 @@ export async function startPipeline(
 		height: Math.floor(512 * originalSize.height / originalSize.width),
 	};
 
-	console.log(ratiodSize, originalSize.width, originalSize.height);
-
 	const initialImageData = offscreenContext.getImageData(
 		0,
 		0,
 		offscreenContext.canvas.width,
 		offscreenContext.canvas.height,
 	);
+
+	const annotationLandmarks = getNormalizedLandmarks(annotations, file.name, initialImageData);
 
 	drawImageFn("Original image", initialImageData, ratiodSize);
 
@@ -57,19 +57,33 @@ export async function startPipeline(
 	const results = await model.runModel(tensor);
 
 	const resizedMat = imageDataToMat(resizedImageData);
-	drawFacePoints(resizedMat, results);
+	drawFacePoints(resizedMat, results, Color.RED, 1);
 
 	drawImageFn("Landmarks in face", matToImageData(resizedMat), { width: 256, height: 256});
 
 	const landmarksMat = copyMat(originalMat);
-	console.log({ x: faceData.offset.x, y: faceData.offset.y })
-	drawFacePointsWithOffset(landmarksMat, faceMat, results, { x: faceData.offset.x, y: faceData.offset.y });
+
+	if (annotationLandmarks) {
+		drawFacePoints(
+			landmarksMat,
+			landmarksToFloat32Array(annotationLandmarks),
+			Color.GREEN,
+			5,
+		);
+	}
+
+	drawFacePointsWithOffset(
+		landmarksMat,
+		faceMat,
+		results,
+		{ x: faceData.offset.x, y: faceData.offset.y },
+		Color.RED,
+		4
+	);
 
 	drawImageFn("Landmarks in image", matToImageData(landmarksMat), ratiodSize);
 
 	const landmarks = processLandmarks(results);
-
-	const annotationLandmarks = getNormalizedLandmarks(annotations, file.name, initialImageData);
 
 	const errors = annotationLandmarks ? calculateLandmarksError(landmarks, annotationLandmarks) : undefined;
 
@@ -156,4 +170,14 @@ function calculateLandmarksError(output: Array<Landmark>, annotations: Array<Lan
 		medianDistance: median,
 		landmarkDistance: distance,
 	};
+}
+
+
+function landmarksToFloat32Array(landmarks: Array<Landmark>): Float32Array {
+	return new Float32Array(landmarks.reduce((prev, curr, index) => {
+		prev[index * 2] = curr.x;
+		prev[index * 2 + 1] = curr.y;
+
+		return prev;
+	}, new Array<number>(landmarks.length * 2)));
 }
