@@ -6,6 +6,7 @@
 	import { ClassificationModel } from "../ai/RunModel";
 	import ClassificationResult from "./ClassificationResult.svelte";
 	import { imageDataToTensor, extractDrawing, showImageDataInCanvas, matToImageData, resizeImage, rgbToBgr } from "../ai/AiHelpers";
+    import Annotations from "./Annotations.svelte";
 
 	let canvas: HTMLCanvasElement;
 	let previewCanvas: HTMLCanvasElement;
@@ -241,6 +242,8 @@
 			Error: {error}
 		</div>
 	{/if}
+
+	<Annotations />
 
 	<div class="flex flex-col gap-y-2">
 		{#each showResults as res}

@@ -1,5 +1,6 @@
 import type { Mat } from "@techstark/opencv-js";
 import { cv } from "./LoadModel";
+import type { ImageSize } from "./AiHelpers";
 
 
 export function drawFacePoints(image: Mat, data: Float32Array): void {
@@ -8,5 +9,18 @@ export function drawFacePoints(image: Mat, data: Float32Array): void {
 		const y = data[i + 1] * image.size().height;
  
 		cv.circle(image, new cv.Point(x, y), 1, [255, 255, 0, 255], -1);
+	}
+}
+
+
+export function drawFacePointsWithOffset(image: Mat, faceMask: Mat, data: Float32Array, offset: { x: number, y: number }): void {
+	// cv.circle(image, new cv.Point(offset.x, offset.y), 10, [0, 255, 0, 255], -1);
+	// cv.circle(image, new cv.Point(offset.x + faceMask.size().width, offset.y + faceMask.size().height), 10, [0, 255, 0, 255], -1);
+
+	for (let i = 0; i < data.length; i += 2) {
+		const x = data[i] * faceMask.size().width + offset.x;
+		const y = data[i + 1] * faceMask.size().height + offset.y;
+ 
+		cv.circle(image, new cv.Point(x, y), 4, [255, 0, 0, 255], -1);
 	}
 }

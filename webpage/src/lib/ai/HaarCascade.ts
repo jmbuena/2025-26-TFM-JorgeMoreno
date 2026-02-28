@@ -7,14 +7,14 @@ const xml_path = "haarcascade_frontalface_default.xml";
 let haar_loaded = false;
 
 
-export async function detectFace(src: Mat): Promise<Mat | undefined> {
-	// const faceCascade = new cv.CascadeClassifier();
+export async function detectFace(src: Mat): Promise<{ mat: Mat, offset: Point } | undefined> {
+	const faceCascade = new cv.CascadeClassifier();
 
-	// if (!haar_loaded) {
-	// 	await loadHaarCascade();
-	// }
+	if (!haar_loaded) {
+		await loadHaarCascade();
+	}
 	
-	// faceCascade.load(xml_path);
+	faceCascade.load(xml_path);
 
 	let gray = new cv.Mat();
 	cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
@@ -23,7 +23,7 @@ export async function detectFace(src: Mat): Promise<Mat | undefined> {
 
 	// Detect faces
 	let msize = new cv.Size(0, 0);
-	// faceCascade.detectMultiScale(gray, faces, 1.1, 3, 0);
+	faceCascade.detectMultiScale(gray, faces, 1.1, 3, 0);
 
 	let selectedRoi = undefined;
 	let selectedFaceSize = 0;
@@ -36,47 +36,68 @@ export async function detectFace(src: Mat): Promise<Mat | undefined> {
 	// );
 
 	// THE GOOD ONE!
-	const faceWithMargin = new cv.Rect(
-		0.0502 * src.size().width,
-		0.1361 * src.size().height,
-		0.9283 * src.size().width - 0.0502 * src.size().width,
-		Math.min(1.0143 * src.size().height - 0.1361 * src.size().height, src.size().height - 0.1361 * src.size().height),
-	);
+	// const faceWithMargin = new cv.Rect(
+	// 	0.0502 * src.size().width,
+	// 	0.1361 * src.size().height,
+	// 	0.9283 * src.size().width - 0.0502 * src.size().width,
+	// 	Math.min(1.0143 * src.size().height - 0.1361 * src.size().height, src.size().height - 0.1361 * src.size().height),
+	// );
 
-	return src.roi(faceWithMargin);
+	const { width: imageWidth, height: imageHeight } = src.size();
+	let selectedRoiRect: Point;
+
+	const enlargementPercent = 0.3;
 
 	for (let i = 0; i < faces.size(); ++i) {
 		const face = faces.get(i);
-		const xoffset = 0;
-		const yoffset = -20;
-		const faceWithMargin = new cv.Rect(
-			Math.max(face.x - xoffset, 0),
-			Math.max(face.y - yoffset, 0),
-			Math.min(face.width + xoffset * 2, 999999),
-			Math.min(face.height + yoffset * 2, 99999),
-		);
-
-		// let point1 = new cv.Point(
-		// 	faces.get(i).x,
-		// 	faces.get(i).y
-		// );
-
-		// let point2 = new cv.Point(
-		// 	face.x + face.width,
-		// 	face.y + face.height
-		// );
-
-		console.log(face.width, face.height);
+		// const xoffset = 100;
+		// const yoffset = 150;
 
 		if (face.width * face.height > selectedFaceSize) {
+			let { x, y, width, height } = face;
+
+			if (width > height) {
+				const squareOffset = width - height;
+				y = Math.max(y - squareOffset, 0);
+				height = width;
+			} else {
+				const squareOffset = height - width;
+
+				x = Math.max(x - squareOffset, 0);
+				width = height;
+			}
+
+			let enlargedWidth = width + width * enlargementPercent;
+			let enlargedHeight = height + height * enlargementPercent;
+
+			if (enlargedWidth + x > imageWidth) {
+				enlargedWidth = imageWidth - x;
+			}
+
+			if (enlargedHeight + y > imageHeight) {
+				enlargedHeight = imageHeight - y;
+			}
+
+			width = enlargedWidth;
+			height = enlargedHeight;
+
+			const point = new cv.Point(x, y);
+			const size = new cv.Size(width, height);
+
+			const faceWithMargin = new cv.Rect(point, size);
+
 			selectedRoi = src.roi(faceWithMargin);
 			selectedFaceSize = face.width * face.height;
+			selectedRoiRect = point;
 		}
 
 		// cv.rectangle(src, point1, point2, [255, 0, 0, 255]);
 	}
 
-	return selectedRoi!;
+	return {
+		mat: selectedRoi!,
+		offset: selectedRoiRect!,
+	};
 }
 
 async function loadHaarCascade(): Promise<void> {

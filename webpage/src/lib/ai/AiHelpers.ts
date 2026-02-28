@@ -1,6 +1,6 @@
 import * as ort from "onnxruntime-web";
 import { cv } from "./LoadModel";
-import { COLOR_RGB2BGR, type Mat, type Size } from "@techstark/opencv-js";
+import { COLOR_RGB2BGR, Mat, type Size } from "@techstark/opencv-js";
 
 
 export async function showImageDataInCanvas(image: ImageData, canvasCtx: CanvasRenderingContext2D): Promise<void> {
@@ -104,7 +104,7 @@ export function resizeImage(image: Mat, size: [number, number]): Mat {
 }
 
 
-export function matToImageData(mat: any) {
+export function matToImageData(mat: Mat): ImageData {
     let img = new ImageData(mat.cols, mat.rows);
 
     if (mat.type() === cv.CV_8UC1) {
@@ -135,6 +135,11 @@ export function matToImageData(mat: any) {
 }
 
 
+export function imageDataToMat(imageData: ImageData): Mat {
+	return cv.matFromImageData(imageData);
+}
+
+
 export function calculateSoftmax(network_outputs: Float32Array<ArrayBufferLike>): number[] {
 	let sum = 0;
 	let exponentials: number[] = [];
@@ -160,4 +165,29 @@ export function rgbToBgr(src: Mat): Mat {
 	cv.cvtColor(src, output, cv.COLOR_RGBA2BGRA, 0);
 
 	return output;
+}
+
+
+export type ImageSize = {
+	width: number,
+	height: number,
+};
+
+
+export function applyImageSize(size: ImageSize, image: ImageData): ImageSize {
+	const width = Number.isInteger(size.width) ? size.width : size.width * image.width;
+	const height = Number.isInteger(size.height) ? size.height : size.height * image.width;
+
+	return {
+		width,
+		height,
+	};
+}
+
+
+export function copyMat(mat: Mat): Mat {
+	let copy: Mat = new cv.Mat();
+	mat.copyTo(copy);
+
+	return copy;
 }

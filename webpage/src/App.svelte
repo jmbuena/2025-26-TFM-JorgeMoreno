@@ -4,6 +4,7 @@
 	import Canvas from "./lib/components/Canvas.svelte";
 	import OpenCV from "./lib/components/OpenCV.svelte";
 	import "/src/assets/ort-wasm-simd-threaded.jsep.mjs";
+    import CanvasBox from "./lib/components/CanvasBox.svelte";
 
 	let loading = $state(true);
 
@@ -15,10 +16,11 @@
 
 <OpenCV />
 
-<div class="min-h-[100vh] py-10 flex items-center justify-center text-white">
+<div class="min-h-[100vh] py-10 text-white">
 	{#if loading}
 		Loading...
 	{:else}
-		<Canvas />
+		<!-- <Canvas /> -->
+		<CanvasBox />
 	{/if}
 </div>
