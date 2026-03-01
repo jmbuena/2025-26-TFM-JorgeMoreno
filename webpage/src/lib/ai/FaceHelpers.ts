@@ -1,5 +1,6 @@
-import type { Mat } from "@techstark/opencv-js";
+import { Point, Rect, type Mat, type Size } from "@techstark/opencv-js";
 import { cv } from "./LoadModel";
+import { imageDataToMat } from "./AiHelpers";
 
 
 export function drawFacePoints(image: Mat, data: Float32Array, color: Color, size: number): void {
@@ -29,6 +30,11 @@ export function drawFacePointsWithOffset(
  
 		cv.circle(image, new cv.Point(x, y), size, color.toArray(), -1);
 	}
+}
+
+
+export function drawSquare(image: Mat, rect: Rect, color: Color): void {
+	cv.rectangle(image, new cv.Point(rect.x, rect.y), new cv.Point(rect.x + rect.width, rect.y + rect.height), color.toArray());
 }
 
 

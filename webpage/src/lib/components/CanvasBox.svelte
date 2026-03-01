@@ -3,6 +3,7 @@
     import { AnnotationRow, processCsvFile } from "../ai/Csv";
     import { Landmark } from "../ai/Landmarks";
     import { startPipeline, type OutputStats } from "../ai/Pipeline";
+    import type { Timings } from "../ai/Timings";
     import DynamicCanvas from "./DynamicCanvas.svelte";
 
 	let images: Array<{ label: string, image: ImageData, size: ImageSize }> = $state([]);
@@ -10,6 +11,7 @@
 	let outputLandmarks: Array<Landmark> = $state([]);
 	let landmarkNumbers: Array<unknown> = $state([]);
 	let stats: OutputStats | undefined = $state(undefined);
+	let timings: Timings | undefined = $state();
 
 	let annotations: Map<string, AnnotationRow> = $state(new Map());
 
@@ -33,7 +35,11 @@
 		const files: Array<File> = (event.target! as any).files as Array<File>;
 		const file = files[0];
 
-		await startPipeline(file, annotations, showCanvas, displayTable);
+		const result = await startPipeline(file, annotations, showCanvas, displayTable);
+
+		if ("timings" in result) {
+			timings = result.timings;
+		}
 	}
 
 	async function readAnnotations(event: Event): Promise<void> {
@@ -50,13 +56,34 @@
 	<input type="file" accept=".csv,.txt" onchange={readAnnotations} class="px-2 py-1 border rounded">
 </div>
 
-<div class="flex flex-wrap gap-5 p-5">
-	{#each images as data}
-		<div class="">
-			<p class="text-orange-500 font-semibold">{data.label}</p>
-			<DynamicCanvas imageData={data.image} size={data.size} />
-		</div>
-	{/each}
+<div class="">
+	{#if timings}
+		<table class="table-auto">
+			<thead>
+				<tr>
+					<th>Measure Name</th>
+					<th>Time (ms)</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each Object.entries(timings.getTimings()) as [timing, time]}
+					<tr>
+						<td>{timing}</td>
+						<td>{(time.end - time.start).toFixed(10)}</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	{/if}
+
+	<div class="grid grid-flow-row auto-rows-max">
+		{#each images as data}
+			<div class="">
+				<p class="text-orange-500 font-semibold">{data.label}</p>
+				<DynamicCanvas imageData={data.image} size={data.size} />
+			</div>
+		{/each}
+	</div>
 
 	{#if outputLandmarks.length > 0}
 		<div>

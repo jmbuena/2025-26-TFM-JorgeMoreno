@@ -2,8 +2,9 @@ import { detectFace } from "./HaarCascade";
 import type { AnnotationRow } from "./Csv";
 import { ClassificationModel } from "./RunModel";
 import { Landmark, processLandmarks } from "./Landmarks";
-import { Color, drawFacePoints, drawFacePointsWithOffset } from "./FaceHelpers";
+import { Color, drawFacePoints, drawFacePointsWithOffset, drawSquare } from "./FaceHelpers";
 import { copyMat, imageDataToMat, imageDataToTensor, matToImageData, resizeImage, type ImageSize } from "./AiHelpers";
+import { Timings } from "./Timings";
 
 
 export async function startPipeline(
@@ -11,7 +12,9 @@ export async function startPipeline(
 	annotations: Map<string, AnnotationRow> | undefined,
 	drawImageFn: (label: string, image: ImageData, size: ImageSize) => void,
 	displayTable: (outputLandmarks: Array<Landmark>, realLandmarks: Array<Landmark> | undefined, stats: OutputStats | undefined) => void,
-): Promise<{ error: string } | undefined> {
+): Promise<{ error: string } | { timings: Timings }> {
+	const timings = new Timings();
+
 	const offscreenContext = await drawFileToOffscreenCanvas(file);
 
 	const originalSize: ImageSize = {
@@ -33,11 +36,13 @@ export async function startPipeline(
 
 	const annotationLandmarks = getNormalizedLandmarks(annotations, file.name, initialImageData);
 
-	drawImageFn("Original image", initialImageData, ratiodSize);
 
 	const originalMat = imageDataToMat(initialImageData);
-	const faceData = await detectFace(originalMat)
-		.catch((error) => console.error("ERROR: " + error));
+
+	const faceData = await timings.measure("faceDetection", async () => {
+		return detectFace(originalMat)
+			.catch((error) => console.error("ERROR: " + error));
+	});
 
 	if (!faceData) {
 		return {
@@ -46,6 +51,8 @@ export async function startPipeline(
 	}
 
 	const faceMat = faceData.mat;
+	// drawSquare(originalMat, faceData.offset, Color.BLUE);
+	drawImageFn("Original image", matToImageData(originalMat), ratiodSize);
 
 	drawImageFn("Face", matToImageData(resizeImage(faceMat, [512, 512])), { width: faceMat.size().width, height: faceMat.size().height });
 
@@ -53,8 +60,13 @@ export async function startPipeline(
 	const resizedImageData = matToImageData(resizeImage(faceMat, [256, 256]));
 	const tensor = imageDataToTensor(resizedImageData);
 
-	const model = new ClassificationModel();
-	const results = await model.runModel(tensor);
+	const model = timings.measure("loadingModel", () => {
+		return new ClassificationModel();
+	});
+
+	const results = await timings.measure("runModel", async () => {
+		return model.runModel(tensor);
+	});
 
 	const resizedMat = imageDataToMat(resizedImageData);
 	drawFacePoints(resizedMat, results, Color.RED, 1);
@@ -84,10 +96,13 @@ export async function startPipeline(
 	drawImageFn("Landmarks in image", matToImageData(landmarksMat), ratiodSize);
 
 	const landmarks = processLandmarks(results);
-
 	const errors = annotationLandmarks ? calculateLandmarksError(landmarks, annotationLandmarks) : undefined;
 
 	displayTable(landmarks, annotationLandmarks, errors);
+
+	return {
+		timings,
+	};
 }
 
 

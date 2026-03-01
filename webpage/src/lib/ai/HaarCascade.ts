@@ -1,4 +1,4 @@
-import { Point, Rect, type Mat } from "@techstark/opencv-js";
+import { Point, Rect, Size, type Mat } from "@techstark/opencv-js";
 import { cv } from "../ai/LoadModel";
 import haarPath from "/assets/detector/haarcascade_frontalface_default.xml?url";
 
@@ -7,7 +7,7 @@ const xml_path = "haarcascade_frontalface_default.xml";
 let haar_loaded = false;
 
 
-export async function detectFace(src: Mat): Promise<{ mat: Mat, offset: Point } | undefined> {
+export async function detectFace(src: Mat): Promise<{ mat: Mat, offset: Rect } | undefined> {
 	const faceCascade = new cv.CascadeClassifier();
 
 	if (!haar_loaded) {
@@ -23,7 +23,7 @@ export async function detectFace(src: Mat): Promise<{ mat: Mat, offset: Point } 
 
 	// Detect faces
 	let msize = new cv.Size(0, 0);
-	faceCascade.detectMultiScale(gray, faces, 1.1, 3, 0);
+	faceCascade.detectMultiScale(gray, faces, 1.3, 3, 0);
 
 	let selectedRoi = undefined;
 	let selectedFaceSize = 0;
@@ -44,7 +44,7 @@ export async function detectFace(src: Mat): Promise<{ mat: Mat, offset: Point } 
 	// );
 
 	const { width: imageWidth, height: imageHeight } = src.size();
-	let selectedRoiRect: Point;
+	let selectedRoiRect: Rect;
 
 	const enlargementPercent = 0.3;
 
@@ -58,17 +58,21 @@ export async function detectFace(src: Mat): Promise<{ mat: Mat, offset: Point } 
 
 			if (width > height) {
 				const squareOffset = width - height;
-				y = Math.max(y - squareOffset, 0);
+
+				y = y - squareOffset;
 				height = width;
 			} else {
 				const squareOffset = height - width;
 
-				x = Math.max(x - squareOffset, 0);
+				x = x - squareOffset;
 				width = height;
 			}
 
-			let enlargedWidth = width + width * enlargementPercent;
-			let enlargedHeight = height + height * enlargementPercent;
+			x = Math.max(0, x - width * enlargementPercent);
+			y = Math.max(0, y - height * enlargementPercent);
+
+			let enlargedWidth = width + width * enlargementPercent * 2;
+			let enlargedHeight = height + height * enlargementPercent * 2;
 
 			if (enlargedWidth + x > imageWidth) {
 				enlargedWidth = imageWidth - x;
@@ -88,10 +92,16 @@ export async function detectFace(src: Mat): Promise<{ mat: Mat, offset: Point } 
 
 			selectedRoi = src.roi(faceWithMargin);
 			selectedFaceSize = face.width * face.height;
-			selectedRoiRect = point;
+			// selectedRoiRect = new cv.Rect(
+			// 	faceWithMargin.x - face.x,
+			// 	faceWithMargin.y - face.y,
+			// 	faceWithMargin.width - face.width,
+			// 	faceWithMargin.height - face.height
+			// );
+			selectedRoiRect = faceWithMargin;
 		}
-
-		// cv.rectangle(src, point1, point2, [255, 0, 0, 255]);
+		
+		// cv.rectangle(src, new cv.Point(face.x, face.y), new cv.Point(face.x + face.width, face.y + face.height), [255, 0, 0, 255]);
 	}
 
 	return {
