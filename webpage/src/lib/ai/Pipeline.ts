@@ -10,6 +10,7 @@ import { Timings } from "./Timings";
 export async function startPipeline(
 	file: File,
 	annotations: Map<string, AnnotationRow> | undefined,
+	model: ClassificationModel,
 	drawImageFn: (label: string, image: ImageData, size: ImageSize) => void,
 	displayTable: (outputLandmarks: Array<Landmark>, realLandmarks: Array<Landmark> | undefined, stats: OutputStats | undefined) => void,
 ): Promise<{ error: string } | { timings: Timings }> {
@@ -34,9 +35,10 @@ export async function startPipeline(
 		offscreenContext.canvas.height,
 	);
 
+	drawImageFn("Original image", initialImageData, ratiodSize);
+	
 	const annotationLandmarks = getNormalizedLandmarks(annotations, file.name, initialImageData);
-
-
+	
 	const originalMat = imageDataToMat(initialImageData);
 
 	const faceData = await timings.measure("faceDetection", async () => {
@@ -44,24 +46,22 @@ export async function startPipeline(
 			.catch((error) => console.error("ERROR: " + error));
 	});
 
-	if (!faceData) {
+	if (!faceData?.mat) {
 		return {
 			error: "No face found in image...",
 		};
 	}
 
 	const faceMat = faceData.mat;
-	// drawSquare(originalMat, faceData.offset, Color.BLUE);
-	drawImageFn("Original image", matToImageData(originalMat), ratiodSize);
 
-	drawImageFn("Face", matToImageData(resizeImage(faceMat, [512, 512])), { width: faceMat.size().width, height: faceMat.size().height });
+	drawImageFn("Face", matToImageData(resizeImage(faceMat, [512, 512])), { width: 256, height: 256 });
 
 	// Run the model
 	const resizedImageData = matToImageData(resizeImage(faceMat, [256, 256]));
 	const tensor = imageDataToTensor(resizedImageData);
 
-	const model = timings.measure("loadingModel", () => {
-		return new ClassificationModel();
+	await timings.measure("loadingModel", async () => {
+		await model.load();
 	});
 
 	const results = await timings.measure("runModel", async () => {
@@ -71,7 +71,7 @@ export async function startPipeline(
 	const resizedMat = imageDataToMat(resizedImageData);
 	drawFacePoints(resizedMat, results, Color.RED, 1);
 
-	drawImageFn("Landmarks in face", matToImageData(resizedMat), { width: 256, height: 256});
+	drawImageFn("Landmarks in face", matToImageData(resizedMat), { width: 256, height: 256 });
 
 	const landmarksMat = copyMat(originalMat);
 
@@ -99,6 +99,8 @@ export async function startPipeline(
 	const errors = annotationLandmarks ? calculateLandmarksError(landmarks, annotationLandmarks) : undefined;
 
 	displayTable(landmarks, annotationLandmarks, errors);
+
+	tensor.dispose();
 
 	return {
 		timings,

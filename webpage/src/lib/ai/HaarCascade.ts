@@ -1,5 +1,5 @@
-import { Point, Rect, Size, type Mat } from "@techstark/opencv-js";
 import { cv } from "../ai/LoadModel";
+import { Rect, type Mat } from "@techstark/opencv-js";
 import haarPath from "/assets/detector/haarcascade_frontalface_default.xml?url";
 
 
@@ -22,26 +22,10 @@ export async function detectFace(src: Mat): Promise<{ mat: Mat, offset: Rect } |
 	let faces = new cv.RectVector();
 
 	// Detect faces
-	let msize = new cv.Size(0, 0);
 	faceCascade.detectMultiScale(gray, faces, 1.3, 3, 0);
 
 	let selectedRoi = undefined;
 	let selectedFaceSize = 0;
-
-	// const faceWithMargin = new cv.Rect(
-	// 	0.298828125 * src.size().width,
-	// 	0.30078125 * src.size().height,
-	// 	0.6796875 * src.size().width - 0.298828125 * src.size().width,
-	// 	0.849609375 * src.size().height - 0.30078125 * src.size().height,
-	// );
-
-	// THE GOOD ONE!
-	// const faceWithMargin = new cv.Rect(
-	// 	0.0502 * src.size().width,
-	// 	0.1361 * src.size().height,
-	// 	0.9283 * src.size().width - 0.0502 * src.size().width,
-	// 	Math.min(1.0143 * src.size().height - 0.1361 * src.size().height, src.size().height - 0.1361 * src.size().height),
-	// );
 
 	const { width: imageWidth, height: imageHeight } = src.size();
 	let selectedRoiRect: Rect;
@@ -50,8 +34,6 @@ export async function detectFace(src: Mat): Promise<{ mat: Mat, offset: Rect } |
 
 	for (let i = 0; i < faces.size(); ++i) {
 		const face = faces.get(i);
-		// const xoffset = 100;
-		// const yoffset = 150;
 
 		if (face.width * face.height > selectedFaceSize) {
 			let { x, y, width, height } = face;
@@ -92,15 +74,10 @@ export async function detectFace(src: Mat): Promise<{ mat: Mat, offset: Rect } |
 
 			selectedRoi = src.roi(faceWithMargin);
 			selectedFaceSize = face.width * face.height;
-			// selectedRoiRect = new cv.Rect(
-			// 	faceWithMargin.x - face.x,
-			// 	faceWithMargin.y - face.y,
-			// 	faceWithMargin.width - face.width,
-			// 	faceWithMargin.height - face.height
-			// );
 			selectedRoiRect = faceWithMargin;
 		}
 		
+		// Uncomment to show the face ROI in the imagef
 		// cv.rectangle(src, new cv.Point(face.x, face.y), new cv.Point(face.x + face.width, face.y + face.height), [255, 0, 0, 255]);
 	}
 
@@ -109,6 +86,7 @@ export async function detectFace(src: Mat): Promise<{ mat: Mat, offset: Rect } |
 		offset: selectedRoiRect!,
 	};
 }
+
 
 async function loadHaarCascade(): Promise<void> {
 	return new Promise((resolve) => {
@@ -124,6 +102,7 @@ async function loadHaarCascade(): Promise<void> {
 					let data = new Uint8Array(request.response);
 					cv.FS_createDataFile('/', xml_path, data, true, false, false);
 					
+					haar_loaded = true;
 					resolve();
 				} else {
 					console.error('Failed to load ' + haarPath + ' status: ' + request.status);

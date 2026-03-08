@@ -3,6 +3,7 @@
     import { AnnotationRow, processCsvFile } from "../ai/Csv";
     import { Landmark } from "../ai/Landmarks";
     import { startPipeline, type OutputStats } from "../ai/Pipeline";
+    import { ClassificationModel } from "../ai/RunModel";
     import type { Timings } from "../ai/Timings";
     import DynamicCanvas from "./DynamicCanvas.svelte";
 
@@ -12,6 +13,7 @@
 	let landmarkNumbers: Array<unknown> = $state([]);
 	let stats: OutputStats | undefined = $state(undefined);
 	let timings: Timings | undefined = $state();
+	const model = new ClassificationModel();
 
 	let annotations: Map<string, AnnotationRow> = $state(new Map());
 
@@ -35,10 +37,12 @@
 		const files: Array<File> = (event.target! as any).files as Array<File>;
 		const file = files[0];
 
-		const result = await startPipeline(file, annotations, showCanvas, displayTable);
+		const result = await startPipeline(file, annotations, model, showCanvas, displayTable);
 
 		if ("timings" in result) {
 			timings = result.timings;
+		} else {
+			timings = undefined;
 		}
 	}
 
