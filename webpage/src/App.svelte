@@ -1,12 +1,13 @@
 <script>
 	import { onMount } from "svelte";
 	import { prepareModels } from "./lib/ai/LoadModel";
-	import Canvas from "./lib/components/Canvas.svelte";
 	import OpenCV from "./lib/components/OpenCV.svelte";
 	import "/src/assets/ort-wasm-simd-threaded.jsep.mjs";
     import CanvasBox from "./lib/components/CanvasBox.svelte";
+    import TrainMultiple from "./lib/components/TrainMultiple.svelte";
 
 	let loading = $state(true);
+	let multiple = $state(location.pathname === "/multiple");
 
 	onMount(async () => {
 		await prepareModels();
@@ -19,6 +20,8 @@
 <div class="min-h-[100vh] py-10 text-white">
 	{#if loading}
 		Loading...
+	{:else if multiple}
+		<TrainMultiple />
 	{:else}
 		<!-- <Canvas /> -->
 		<CanvasBox />

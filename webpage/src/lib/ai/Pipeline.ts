@@ -1,19 +1,27 @@
+import { Timings } from "./Timings";
 import { detectFace } from "./HaarCascade";
 import type { AnnotationRow } from "./Csv";
 import { ClassificationModel } from "./RunModel";
 import { Landmark, processLandmarks } from "./Landmarks";
 import { Color, drawFacePoints, drawFacePointsWithOffset, drawSquare } from "./FaceHelpers";
 import { copyMat, imageDataToMat, imageDataToTensor, matToImageData, resizeImage, type ImageSize } from "./AiHelpers";
-import { Timings } from "./Timings";
 
+
+type PipelineOutput = {
+	error: string,
+} | {
+	timings: Timings,
+	errors: OutputStats | undefined,
+}
 
 export async function startPipeline(
+	modelName: string,
 	file: File,
 	annotations: Map<string, AnnotationRow> | undefined,
 	model: ClassificationModel,
-	drawImageFn: (label: string, image: ImageData, size: ImageSize) => void,
-	displayTable: (outputLandmarks: Array<Landmark>, realLandmarks: Array<Landmark> | undefined, stats: OutputStats | undefined) => void,
-): Promise<{ error: string } | { timings: Timings }> {
+	drawImageFn?: (label: string, image: ImageData, size: ImageSize) => void,
+	displayTable?: (outputLandmarks: Array<Landmark>, realLandmarks: Array<Landmark> | undefined, stats: OutputStats | undefined) => void,
+): Promise<PipelineOutput> {
 	const timings = new Timings();
 
 	const offscreenContext = await drawFileToOffscreenCanvas(file);
@@ -35,7 +43,9 @@ export async function startPipeline(
 		offscreenContext.canvas.height,
 	);
 
-	drawImageFn("Original image", initialImageData, ratiodSize);
+	if (drawImageFn) {
+		drawImageFn("Original image", initialImageData, ratiodSize);
+	}
 	
 	const annotationLandmarks = getNormalizedLandmarks(annotations, file.name, initialImageData);
 	
@@ -54,24 +64,35 @@ export async function startPipeline(
 
 	const faceMat = faceData.mat;
 
-	drawImageFn("Face", matToImageData(resizeImage(faceMat, [512, 512])), { width: 256, height: 256 });
+	if (drawImageFn) {
+		drawImageFn("Face", matToImageData(resizeImage(faceMat, [512, 512])), { width: 256, height: 256 });
+	}
 
 	// Run the model
-	const resizedImageData = matToImageData(resizeImage(faceMat, [256, 256]));
-	const tensor = imageDataToTensor(resizedImageData);
+	const resizedFaceMat = resizeImage(faceMat, [256, 256]);
+	const resizedImageData = matToImageData(resizedFaceMat);
+
+	// resizedFaceMat.release();
+	// faceMat.release();
 
 	await timings.measure("loadingModel", async () => {
-		await model.load();
+		return model.load(modelName);
 	});
+
+	const tensor = imageDataToTensor(resizedImageData);
 
 	const results = await timings.measure("runModel", async () => {
 		return model.runModel(tensor);
 	});
 
-	const resizedMat = imageDataToMat(resizedImageData);
-	drawFacePoints(resizedMat, results, Color.RED, 1);
+	tensor.dispose();
 
-	drawImageFn("Landmarks in face", matToImageData(resizedMat), { width: 256, height: 256 });
+	if (drawImageFn) {
+		const resizedMat = imageDataToMat(resizedImageData);
+		drawFacePoints(resizedMat, results, Color.RED, 1);
+
+		drawImageFn("Landmarks in face", matToImageData(resizedMat), { width: 256, height: 256 });
+	}
 
 	const landmarksMat = copyMat(originalMat);
 
@@ -83,27 +104,36 @@ export async function startPipeline(
 			5,
 		);
 	}
+	
+	if (drawImageFn) {
+		drawFacePointsWithOffset(
+			landmarksMat,
+			faceMat,
+			results,
+			{ x: faceData.offset.x, y: faceData.offset.y },
+			Color.RED,
+			4
+		);
 
-	drawFacePointsWithOffset(
-		landmarksMat,
-		faceMat,
-		results,
-		{ x: faceData.offset.x, y: faceData.offset.y },
-		Color.RED,
-		4
-	);
+		drawImageFn("Landmarks in image", matToImageData(landmarksMat), ratiodSize);
+	}
 
-	drawImageFn("Landmarks in image", matToImageData(landmarksMat), ratiodSize);
-
+	const imageWidth = originalSize.width;
+	const headWidth = faceMat.size().width;
+	const relativeHeadSize = headWidth / imageWidth;
+	
 	const landmarks = processLandmarks(results);
-	const errors = annotationLandmarks ? calculateLandmarksError(landmarks, annotationLandmarks) : undefined;
+	const errors = annotationLandmarks
+		? calculateLandmarksError(landmarks, annotationLandmarks, relativeHeadSize)
+		: undefined;
 
-	displayTable(landmarks, annotationLandmarks, errors);
-
-	tensor.dispose();
+	if (displayTable) {
+		displayTable(landmarks, annotationLandmarks, errors);
+	}
 
 	return {
 		timings,
+		errors,
 	};
 }
 
@@ -162,7 +192,11 @@ export type OutputStats = {
 }
 
 
-function calculateLandmarksError(output: Array<Landmark>, annotations: Array<Landmark>): OutputStats {
+function calculateLandmarksError(
+	output: Array<Landmark>,
+	annotations: Array<Landmark>,
+	relativeHeadSize: number,
+): OutputStats {
 	let totalError = 0;
 	let distance = new Array<number>(output.length);
 
@@ -173,7 +207,7 @@ function calculateLandmarksError(output: Array<Landmark>, annotations: Array<Lan
 		distance[i] = error;
 	}
 
-	const median = totalError / output.length;
+	const median = (totalError / output.length) * relativeHeadSize;
 
 	// Calculate deviation
 	const sumErrorsSquared = distance.reduce((prev, current) => {

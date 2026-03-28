@@ -1,7 +1,7 @@
 
 
 export class Timings {
-	protected readonly timings: Record<string, { start: number, end: number }> = {};
+	protected readonly timings: Record<string, { start: number, end: number, duration: () => number }> = {};
 
 
 	measure<T extends (...args: any) => any>(name: string, fn: T): ReturnType<T> {
@@ -22,6 +22,9 @@ export class Timings {
 		this.timings[name] = {
 			start: performance.now(),
 			end: Number.NEGATIVE_INFINITY,
+			duration: function(this) {
+				return this.end - this.start;
+			}
 		};
 	}
 

@@ -1,5 +1,5 @@
-import * as ort from "onnxruntime-web/wasm";
-import { CLASSIFICATION_CLASSES } from "./ClassificationClasses";
+// import * as ort from "onnxruntime-web/wasm";
+import * as ort from "onnxruntime-web/webgpu";
 
 
 export class ClassificationModel {
@@ -8,28 +8,20 @@ export class ClassificationModel {
 	protected isLoaded = false;
 
 
-	async load() {
+	async load(model: string) {
 		if (this.isLoaded) {
 			return;
 		}
 
-		console.log("Starting model...")
-
-		// const baseModelResponse = await fetch("assets/models/ResNet.onnx");
-		// const baseModelBytes = await baseModelResponse.bytes();
-
-		// const modelResponse = await fetch("assets/models/ResNet.onnx.data");
-		// const modelBytes = await modelResponse.bytes();
+		console.log("Starting model...");
 
 		ort.env.wasm.initTimeout = 10000;
 		ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@dev/dist/";
-
+		
 		// Load the model (can be local or remote URL)
-		this.session = await ort.InferenceSession.create("/assets/models/FaceMerged.onnx", {
-			// externalData: ["./assets/models/ResNet.onnx.data"],
-			executionProviders: ["wasm"],
-			// logSeverityLevel: 0,
-			// logVerbosityLevel: 0,
+		this.session = await ort.InferenceSession.create(`/assets/models/${model}.onnx`, {
+			// executionProviders: ["wasm"],
+			executionProviders: ["webgpu"],
 		});
 
 		this.isLoaded = true;

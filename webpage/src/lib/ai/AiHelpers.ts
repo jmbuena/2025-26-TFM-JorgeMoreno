@@ -191,3 +191,8 @@ export function copyMat(mat: Mat): Mat {
 
 	return copy;
 }
+
+
+export class TensorStorage {
+	protected readonly tensors: Array<Mat> = [];
+}

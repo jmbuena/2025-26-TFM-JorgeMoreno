@@ -43,3 +43,24 @@ export function processCsvFile(fileContents: string): Map<string, AnnotationRow>
 
 	return annotations;
 }
+
+
+export function objectToCsvString(dataRows: Array<Record<string, number | string>>): string {
+	if (dataRows.length === 0) {
+		return "";
+	}
+
+	const columnNames = Object.keys(dataRows[0]);
+
+	const rowsString = dataRows.map((row) => {
+		return columnNames.map((columnName) => {
+			return row[columnName];
+		}).join(", ");
+	}).join("\n");
+
+	const columnNamesString = columnNames.map((name) => {
+		return name.replaceAll(" ", "_").toLowerCase();
+	}).join(", ");
+
+	return columnNamesString + "\n" + rowsString;
+}

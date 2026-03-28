@@ -22,7 +22,6 @@
 		}
 
 		displaySize = applyImageSize(size, imageData);
-		$inspect(displaySize);
 
 		canvasContext.drawImage(
 			await createImageBitmap(imageData),

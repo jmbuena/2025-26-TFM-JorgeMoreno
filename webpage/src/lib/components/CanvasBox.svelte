@@ -13,9 +13,17 @@
 	let landmarkNumbers: Array<unknown> = $state([]);
 	let stats: OutputStats | undefined = $state(undefined);
 	let timings: Timings | undefined = $state();
+	let selectedModel = $state<string>();
+
 	const model = new ClassificationModel();
+	const allTimings: Array<Timings> = [];
 
 	let annotations: Map<string, AnnotationRow> = $state(new Map());
+
+	let models = {
+		"FaceMerged": "ResNet50 (old)",
+		"mobilenet_v3_small": "MobileNet V3 Small",
+	};
 
 	export function showCanvas(label: string, image: ImageData, size: ImageSize): void {
 		images.push({ label, image, size });
@@ -35,15 +43,47 @@
 
 	async function start(event: Event): Promise<void> {
 		const files: Array<File> = (event.target! as any).files as Array<File>;
-		const file = files[0];
 
-		const result = await startPipeline(file, annotations, model, showCanvas, displayTable);
-
-		if ("timings" in result) {
-			timings = result.timings;
-		} else {
-			timings = undefined;
+		for (const file of files) {
+			// const file = files[0];
+	
+			const result = await startPipeline(selectedModel ?? Object.keys(models)[0], file, annotations, model, showCanvas, displayTable);
+	
+			if ("timings" in result) {
+				timings = result.timings;
+				allTimings.push(timings);
+			} else {
+				timings = undefined;
+			}
 		}
+
+		const totalTimings: Record<string, { median: number, deviation: number }> = {};
+
+		console.log(allTimings);
+
+		allTimings.forEach((timing, index) => {
+			const x = timing.getTimings();
+
+			for (const key in x) {
+				console.log(index, key, x[key].duration());
+				
+				if (key in totalTimings) {
+					totalTimings[key].median += x[key].duration();
+				} else {
+					totalTimings[key] = {
+						median: x[key].duration(),
+						deviation: 0,
+					};
+				}
+			}
+		});
+
+		for (const key in totalTimings) {
+			totalTimings[key].median /= allTimings.length;
+			// totalTimings[key].deviation /= allTimings.length;
+		}
+
+		console.log(totalTimings);
 	}
 
 	async function readAnnotations(event: Event): Promise<void> {
@@ -55,9 +95,15 @@
 </script>
 
 <div class="flex justify-center">
-	<input type="file" accept="image/*" onchange={start} class="px-2 py-1 border rounded">
+	<input type="file" accept="image/*" onchange={start} class="px-2 py-1 border rounded" multiple>
 
 	<input type="file" accept=".csv,.txt" onchange={readAnnotations} class="px-2 py-1 border rounded">
+
+	<select id="modelNames" bind:value={selectedModel}>
+		{#each Object.entries(models) as [modelPath, modelName]}
+			<option value={modelPath}>{modelName}</option>
+		{/each}
+	</select>
 </div>
 
 <div class="">
