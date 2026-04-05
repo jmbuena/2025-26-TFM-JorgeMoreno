@@ -7,7 +7,14 @@ export class Timings {
 	measure<T extends (...args: any) => any>(name: string, fn: T): ReturnType<T> {
 		this.start(name);
 		const result = fn();
-		this.end(name);
+
+		if (result instanceof Promise) {
+			result.then(() => {
+				this.end(name);
+			});
+		} else {
+			this.end(name);
+		}
 
 		return result;
 	}
