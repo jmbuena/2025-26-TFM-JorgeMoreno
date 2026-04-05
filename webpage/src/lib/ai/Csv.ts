@@ -20,7 +20,7 @@ export function processCsvFile(fileContents: string): Map<string, AnnotationRow>
 	const annotations: Map<string, AnnotationRow> = new Map();
 	
 	for (const line of lines) {
-		const columns = line.split(";");
+		const columns = line.split(",");
 
 		const filename = columns[0].split("/").at(-1) ?? "unknown";
 

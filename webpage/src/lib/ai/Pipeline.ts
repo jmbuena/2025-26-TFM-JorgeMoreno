@@ -1,5 +1,5 @@
 import { Timings } from "./Timings";
-import { detectFace } from "./HaarCascade";
+import { detectFace, isHaarReady, loadHaarCascade } from "./HaarCascade";
 import type { AnnotationRow } from "./Csv";
 import { ClassificationModel } from "./RunModel";
 import { Landmark, processLandmarks } from "./Landmarks";
@@ -51,9 +51,12 @@ export async function startPipeline(
 	
 	const originalMat = imageDataToMat(initialImageData);
 
-	const faceData = await timings.measure("faceDetection", async () => {
-		return detectFace(originalMat)
-			.catch((error) => console.error("ERROR: " + error));
+	if (!isHaarReady) {
+		await loadHaarCascade();
+	}
+
+	const faceData = timings.measure("faceDetection", () => {
+		return detectFace(originalMat);
 	});
 
 	if (!faceData?.mat) {
@@ -73,7 +76,7 @@ export async function startPipeline(
 	const resizedImageData = matToImageData(resizedFaceMat);
 
 	// resizedFaceMat.release();
-	// faceMat.release();
+	// faceMat.delete();
 
 	await timings.measure("loadingModel", async () => {
 		return model.load(modelName);
@@ -90,8 +93,9 @@ export async function startPipeline(
 	if (drawImageFn) {
 		const resizedMat = imageDataToMat(resizedImageData);
 		drawFacePoints(resizedMat, results, Color.RED, 1);
-
+		
 		drawImageFn("Landmarks in face", matToImageData(resizedMat), { width: 256, height: 256 });
+		resizedMat.release();
 	}
 
 	const landmarksMat = copyMat(originalMat);

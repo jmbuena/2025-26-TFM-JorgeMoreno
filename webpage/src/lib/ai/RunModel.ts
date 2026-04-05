@@ -1,11 +1,20 @@
-// import * as ort from "onnxruntime-web/wasm";
-import * as ort from "onnxruntime-web/webgpu";
+import * as wasmOrt from "onnxruntime-web/wasm";
+import * as gpuOrt from "onnxruntime-web/webgpu";
 
 
 export class ClassificationModel {
-	protected session: ort.InferenceSession | undefined;
+	protected session: wasmOrt.InferenceSession | undefined;
 
 	protected isLoaded = false;
+
+	protected useGPU: boolean = true;
+
+	protected ort: any;
+
+
+	setUseGPU(useGPU: boolean): void {
+		this.useGPU = useGPU;
+	}
 
 
 	async load(model: string) {
@@ -15,13 +24,20 @@ export class ClassificationModel {
 
 		console.log("Starting model...");
 
+		const ort = this.useGPU
+			? gpuOrt
+			: wasmOrt;
+
 		ort.env.wasm.initTimeout = 10000;
 		ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@dev/dist/";
+
+		const providers = this.useGPU
+			? ["webgpu"]
+			: ["wasm"];
 		
 		// Load the model (can be local or remote URL)
 		this.session = await ort.InferenceSession.create(`/assets/models/${model}.onnx`, {
-			// executionProviders: ["wasm"],
-			executionProviders: ["webgpu"],
+			executionProviders: providers,
 		});
 
 		this.isLoaded = true;
@@ -32,7 +48,7 @@ export class ClassificationModel {
 	}
 
 
-	async runModel(input: ort.Tensor): Promise<Float32Array> {
+	async runModel(input: wasmOrt.Tensor): Promise<Float32Array> {
 		if (!this.session) {
 			return new Float32Array();
 		}

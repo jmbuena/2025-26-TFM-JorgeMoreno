@@ -6,6 +6,8 @@
 	const models = {
 		"FaceMerged": "ResNet50 (old)",
 		"mobilenet_v3_small": "MobileNet V3 Small",
+		"mobilenet_v3_large": "MobileNet V3 Large",
+		"resnet18": "ResNet18",
 	};
 
 	let images = $state<Array<File>>([]);
@@ -15,6 +17,14 @@
 	let selectedModel = $state(Object.keys(models)[0]);
 	let tableData: Array<Record<string, number | string>> = $state([]);
 	let tableDataStats: Record<string, number> = $state({});
+	let warmupCount: number = $state(10);
+	let useGPU: boolean = $state(true);
+	let otherStats = $state({
+		facesMissing: 0,
+		totalTime: 0,
+		warmupTime: 0,
+		csvProcessingTime: 0,
+	});
 
 	function setImages(event: Event) {
 		images = (event.target! as any).files as Array<File>;
@@ -30,18 +40,39 @@
 		tableDataStats = {};
 		tableData = [];
 
+		const startProcessingCsv = performance.now();
 		const annotations = annotationsFile
 			? processCsvFile(await annotationsFile.text())
 			: new Map();
+		otherStats.csvProcessingTime = performance.now() - startProcessingCsv;
 
 		const numberDurations: Array<Record<string, number>> = [];
 
 		const model = new ClassificationModel();
+		model.setUseGPU(useGPU);
 
-		for (const image of images) {
-			const result = await startPipeline(selectedModel, image, annotations, model);
+		// Warmup
+		const startWarmup = performance.now();
+		for (let i = 0; i < warmupCount; i++) {
+			const image = images[i];
+			await startPipeline(selectedModel, image, annotations, model);
+		}
+		otherStats.warmupTime = performance.now() - startWarmup;
 
-			if ("timings" in result) {
+		// Execution
+		for (let i = warmupCount; i < images.length; i++) {
+			const image = images[i];
+
+			const startExecution = performance.now();
+			
+			const result = await startPipeline(selectedModel, image, annotations, model)
+				.catch((error) => {
+					console.error(error);
+				});
+
+			otherStats.totalTime += performance.now() - startExecution;
+
+			if (result && "timings" in result) {
 				const durations: Record<string, number> = {};
 				
 				const timings = result.timings.getTimings();
@@ -57,6 +88,12 @@
 					"Error medio": result.errors?.deviation ?? 0,
 					"Desviación típica": result.errors?.medianDistance ?? 0,
 				});
+			} else {
+				tableData.push({
+					"Nombre imagen": image.name,
+				});
+
+				otherStats.facesMissing++;
 			}
 		}
 
@@ -71,18 +108,26 @@
 					}
 				}
 			}
-
 		}
 
 		for (const [key, stat] of Object.entries(tableDataStats)) {
-			tableDataStats[key] = stat / tableData.length;
+			tableDataStats[key] = stat / (tableData.length - otherStats.facesMissing);
 		}
 
 		isProcessing = false;
 	}
 
 	function copyTableClipboardAsCvs(): void {
-		const csvString = objectToCsvString(tableData);
+		const tableDataWithExtraData = new Array(tableData.length);
+		for (const row of tableData) {
+			tableDataWithExtraData.push({
+				...row,
+				with_gpu: useGPU ? 1 : 0,
+				model: selectedModel,
+			});
+		}
+
+		const csvString = objectToCsvString(tableDataWithExtraData);
 		navigator.clipboard.writeText(csvString);
 	}
 
@@ -121,13 +166,38 @@
 		<input type="file" id="anns" accept=".txt" oninput={setAnnotationFile} class="hidden">
 	</div>
 
+	<div class="flex items-center gap-x-2">
+		<p>Calentamiento: </p>
+		<input
+			type="number"
+			id="calentamiento"
+			min="0" max={images.length}
+			bind:value={warmupCount}
+			disabled={images.length === 0}
+			class="px-2 py-1 border rounded hover:bg-neutral-700 not-disabled:hover:bg-neutral-700 disabled:border-neutral-700 disabled:text-neutral-700"
+		>
+	</div>
+
+	<div class="flex items-center gap-x-2">
+		<p>Usar GPU: </p>
+		<input
+			type="checkbox"
+			id="useGPU"
+			bind:checked={useGPU}
+			class="px-2 py-1 border rounded hover:bg-neutral-700 not-disabled:hover:bg-neutral-700 disabled:border-neutral-700 disabled:text-neutral-700"
+		>
+	</div>
+
 	<div>
 		<button
 			onclick={startProcessing}
-			class="px-2 py-1 border rounded not-disabled:hover:bg-neutral-700 disabled:border-neutral-700 disabled:text-neutral-700"
+			class="flex items-center px-2 py-1 border rounded not-disabled:hover:bg-neutral-700 disabled:border-neutral-700 disabled:text-neutral-700"
 			disabled={!canStartProcessing}
 		>
-			Procesar
+			{#if isProcessing}
+				<svg xmlns="http://www.w3.org/2000/svg" width="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1 animate-spin lucide lucide-loader-icon lucide-loader"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/></svg>
+			{/if}
+			<span>Procesar</span>
 		</button>
 	</div>
 
@@ -169,6 +239,14 @@
 
 			<div>
 				<button class="my-3 px-2 py-1 border rounded hover:bg-neutral-700" onclick={copyTableClipboardAsCvs}>Guardar como CSV</button>
+			</div>
+
+			<div>
+				<h2 class="text-xl">Otras estadísticas:</h2>
+				<p>Caras no encontradas: {otherStats.facesMissing}</p>
+				<p>Tiempo lectura CSV: {(otherStats.csvProcessingTime / 1000).toFixed(4)}s</p>
+				<p>Tiempo calentamiento: {(otherStats.warmupTime / 1000).toFixed(4)}s</p>
+				<p>Tiempo procesamiento: {(otherStats.totalTime / 1000).toFixed(4)}s</p>
 			</div>
 		{:else}
 			<p class="">No se ha procesado el modelo todavía</p>
