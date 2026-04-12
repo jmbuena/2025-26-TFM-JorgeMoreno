@@ -52,6 +52,8 @@ class StudentsLandmarks(Alignment):
                             help='Number of sweeps over the dataset to train.')
         parser.add_argument('--patience', dest='patience', type=int, default=20,
                             help='Number of epochs with no improvement after which training will be stopped.')
+        parser.add_argument('--size', dest='size', type=int, default=256,
+                    help='Width and height of the training images.')
         args, unknown = parser.parse_known_args(unknown)
         print(parser.format_usage())
         mode_gpu = torch.cuda.is_available() and -1 not in args.gpu
@@ -62,7 +64,7 @@ class StudentsLandmarks(Alignment):
         self.batch_size = args.batch_size
         self.epochs = args.epochs
         self.patience = args.patience
-        self.width, self.height = (224, 224) if self.regressor is Regressor.ENCODER and self.backbone in [Backbone.VIT] else (256, 256)
+        self.width, self.height = (224, 224) if self.regressor is Regressor.ENCODER and self.backbone in [Backbone.VIT] else (args.size, args.size)
         if self.database in ['300w_public', '300w_private', '300wlp']:
             self.indices = [101, 102, 103, 104, 105, 106, 107, 108, 24, 110, 111, 112, 113, 114, 115, 116, 117, 1, 119, 2, 121, 3, 4, 124, 5, 126, 6, 128, 129, 130, 17, 16, 133, 134, 135, 18, 7, 138, 139, 8, 141, 142, 11, 144, 145, 12, 147, 148, 20, 150, 151, 22, 153, 154, 21, 156, 157, 23, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168]
         elif self.database in 'cofw':
@@ -92,7 +94,7 @@ class StudentsLandmarks(Alignment):
         # Train the model
         print('Train model')
         accelerator = 'gpu' if 'cuda' in str(self.device) else 'cpu'
-        model_path = self.path + 'data/' + self.database + '/' + self.regressor.value + '/' + self.backbone.value + '/'
+        model_path = self.path + 'data/' + self.database + '/' + self.regressor.value + '/' + self.backbone.value + '/' + str(self.width) + '/'
         ckpt_path = os.path.join(model_path+'ckpt/', 'last.ckpt')
         loggers = [pl_loggers.TensorBoardLogger(save_dir=model_path+'logs/', default_hp_metric=False), PCRLogger()]
         early_callback = EarlyStopping(monitor='val_loss', mode='min', patience=self.patience)
@@ -116,7 +118,7 @@ class StudentsLandmarks(Alignment):
         torchinfo.summary(self.model, input_size=(self.batch_size, 3, self.width, self.height), depth=5, device=self.device.type, col_names=['input_size', 'output_size', 'num_params', 'kernel_size'])
         # Set up the neural network to test
         if mode is Modes.TEST:
-            model_path = self.path + 'data/' + self.database + '/' + self.regressor.value + '/' + self.backbone.value + '/'
+            model_path = self.path + 'data/' + self.database + '/' + self.regressor.value + '/' + self.backbone.value + '/' + str(self.width) + '/'
             print('Loading model from {}'.format(model_path))
             self.model = ModelClass.load_from_checkpoint(os.path.join(model_path+'ckpt/', 'best.ckpt'), num_classes=len(self.indices), backbone=self.backbone)
             self.model.to(self.device)

@@ -58,7 +58,9 @@ class LitEncoder(pl.LightningModule):
         Backbone.EFFICIENTNETB5: models.efficientnet_b5,
         Backbone.EFFICIENTNETB6: models.efficientnet_b6,
         Backbone.EFFICIENTNETB7: models.efficientnet_b7,
-        Backbone.VIT: models.maxvit_t
+        Backbone.VIT: models.maxvit_t,
+        Backbone.MOBILENET3_LARGE: models.mobilenet_v3_large,
+        Backbone.MOBILENET3_SMALL: models.mobilenet_v3_small,
     }
 
     def __init__(self, num_classes, backbone, epochs=100, batch_size=16, transfer=True, tune_fc_only=True):
@@ -66,6 +68,7 @@ class LitEncoder(pl.LightningModule):
         self.num_classes = num_classes
         self.epochs = epochs
         self.batch_size = batch_size
+
         # Encoder architecture
         self.model = self.encoders[backbone](weights='IMAGENET1K_V1' if transfer else None)
         # Replace final layer
@@ -77,10 +80,16 @@ class LitEncoder(pl.LightningModule):
             classifier = 'classifier.1'
             linear_size = self.model.classifier[1].in_features
             self.model.classifier[1] = nn.Linear(in_features=linear_size, out_features=num_classes*2)
+        elif backbone in [Backbone.MOBILENET3_LARGE, Backbone.MOBILENET3_SMALL]:
+            classifier = 'classifier.3'
+            print(self.model.classifier)
+            linear_size = self.model.classifier[3].in_features
+            self.model.classifier[3] = nn.Linear(in_features=linear_size, out_features=num_classes*2)
         else:
             classifier = 'classifier.5'
             linear_size = self.model.classifier[5].in_features
             self.model.classifier[5] = nn.Linear(in_features=linear_size, out_features=num_classes*2)
+        
         if tune_fc_only:
             for name, param in self.model.named_parameters():
                 if not any(sub in name for sub in [classifier]):
