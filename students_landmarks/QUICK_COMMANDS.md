@@ -16,3 +16,8 @@ python convert_to_onnx.py --anns-file wflw_ann_train.txt --database wflw --gpu 0
 ```bash
 python utils/extract_random_test_images.py --anns-file wflw_ann_test.txt --output-folder test_images/
 ```
+
+## Generate the results.txt to calculate the NME of a model
+```bash
+python test/students_landmarks_database.py --anns-file wflw_ann_train.txt --database wflw --gpu 0 --regressor encoder --backbone efficientnet-b0 --batch-size 64 --epochs 100 --patience 20 --size 256 --save-file
+```

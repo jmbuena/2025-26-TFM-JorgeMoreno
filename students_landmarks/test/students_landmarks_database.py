@@ -87,12 +87,14 @@ def main():
     composite.parse_options(unknown)
     anns = load_annotations(anns_file)
     composite.load(Modes.TEST)
-    spec = importlib.util.find_spec('images_framework')
+    # spec = importlib.util.find_spec('images_framework')
+    spec = None
+    output_file = f"results_{sa.backbone.value}_{str(sa.width)}"
     output_path = os.path.join('images_framework' if spec is None else os.path.dirname(spec.origin), 'output')
     if show_viewer:
         viewer = Viewer('images_viewer')
     if save_file:
-        ofs = open(output_path+'/results.txt', 'w', encoding='utf-8')
+        ofs = open(f"{output_path}/{output_file}.txt", 'w', encoding='utf-8')
     if save_image:
         viewer = Viewer('images_save')
         dirname = os.path.join(output_path, 'images/')
