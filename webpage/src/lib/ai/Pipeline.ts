@@ -1,5 +1,5 @@
 import { Timings } from "./Timings";
-import { detectFace, isHaarReady, loadHaarCascade } from "./HaarCascade";
+import { detectFace, getFaceFromAnnotations, isHaarReady, loadHaarCascade } from "./HaarCascade";
 import type { AnnotationRow } from "./Csv";
 import { ClassificationModel } from "./RunModel";
 import { Landmark, processLandmarks } from "./Landmarks";
@@ -19,6 +19,7 @@ export async function startPipeline(
 	file: File,
 	annotations: Map<string, AnnotationRow> | undefined,
 	model: ClassificationModel,
+	inputSize: number,
 	drawImageFn?: (label: string, image: ImageData, size: ImageSize) => void,
 	displayTable?: (outputLandmarks: Array<Landmark>, realLandmarks: Array<Landmark> | undefined, stats: OutputStats | undefined) => void,
 ): Promise<PipelineOutput> {
@@ -32,8 +33,8 @@ export async function startPipeline(
 	};
 
 	const ratiodSize: ImageSize = {
-		width: 512,
-		height: Math.floor(512 * originalSize.height / originalSize.width),
+		width: inputSize,
+		height: Math.floor(inputSize * originalSize.height / originalSize.width),
 	};
 
 	const initialImageData = offscreenContext.getImageData(
@@ -68,11 +69,11 @@ export async function startPipeline(
 	const faceMat = faceData.mat;
 
 	if (drawImageFn) {
-		drawImageFn("Face", matToImageData(resizeImage(faceMat, [512, 512])), { width: 256, height: 256 });
+		drawImageFn("Face", matToImageData(resizeImage(faceMat, [inputSize, inputSize])), { width: 256, height: 256 });
 	}
 
 	// Run the model
-	const resizedFaceMat = resizeImage(faceMat, [256, 256]);
+	const resizedFaceMat = resizeImage(faceMat, [inputSize, inputSize]);
 	const resizedImageData = matToImageData(resizedFaceMat);
 
 	// resizedFaceMat.release();
@@ -134,6 +135,85 @@ export async function startPipeline(
 	if (displayTable) {
 		displayTable(landmarks, annotationLandmarks, errors);
 	}
+
+	return {
+		timings,
+		errors,
+	};
+}
+
+
+
+export async function startPipelineWithPerfectAnnotations(
+	modelName: string,
+	file: File,
+	annotations: Map<string, AnnotationRow>,
+	model: ClassificationModel,
+	inputSize: number,
+): Promise<PipelineOutput> {
+	const timings = new Timings();
+
+	const offscreenContext = await drawFileToOffscreenCanvas(file);
+
+	const originalSize: ImageSize = {
+		width: offscreenContext.canvas.width,
+		height: offscreenContext.canvas.height,
+	};
+
+	const initialImageData = offscreenContext.getImageData(
+		0,
+		0,
+		offscreenContext.canvas.width,
+		offscreenContext.canvas.height,
+	);
+
+	const annotationLandmarks = getNormalizedLandmarks(annotations, file.name, initialImageData);
+	
+	const originalMat = imageDataToMat(initialImageData);
+
+	const annotationRow = annotations.get(file.name);
+
+	if (!annotationRow) {
+		throw new Error(`Annotation not found for image [${file.name}]`);
+	}
+
+	const { face } = annotationRow;
+	const faceMat = getFaceFromAnnotations(originalMat, face);
+
+	// Run the model
+	const resizedFaceMat = resizeImage(faceMat, [inputSize, inputSize]);
+	const resizedImageData = matToImageData(resizedFaceMat);
+
+	// resizedFaceMat.release();
+	// faceMat.delete();
+
+	const tensor = imageDataToTensor(resizedImageData);
+
+	const results = await timings.measure("runModel", async () => {
+		return model.runModel(tensor);
+	});
+
+	tensor.dispose();
+
+	const landmarksMat = copyMat(originalMat);
+
+	if (annotationLandmarks) {
+		drawFacePoints(
+			landmarksMat,
+			landmarksToFloat32Array(annotationLandmarks),
+			Color.GREEN,
+			5,
+		);
+	}
+	
+	const imageWidth = originalSize.width;
+	const headWidth = faceMat.size().width;
+	const relativeHeadSize = headWidth / imageWidth;
+	
+	const landmarks = processLandmarks(results);
+	const errors = annotationLandmarks
+		? calculateLandmarksError(landmarks, annotationLandmarks, relativeHeadSize)
+		: undefined;
 
 	return {
 		timings,

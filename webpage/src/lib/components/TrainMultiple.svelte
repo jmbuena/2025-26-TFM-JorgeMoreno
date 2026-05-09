@@ -1,20 +1,45 @@
 <script lang="ts">
     import { objectToCsvString, processCsvFile } from "../ai/Csv";
-    import { startPipeline } from "../ai/Pipeline";
+    import { startPipeline, startPipelineWithPerfectAnnotations } from "../ai/Pipeline";
     import { ClassificationModel } from "../ai/RunModel";
 
-	const models = {
-		"FaceMerged": "ResNet50 (old)",
-		"mobilenet_v3_small": "MobileNet V3 Small",
-		"mobilenet_v3_large": "MobileNet V3 Large",
-		"resnet18": "ResNet18",
+	const models: Record<string, Record<string, string>> = {
+		"ResNet50 (old)": {
+			"256": "FaceMerged",
+		},
+		"ResNet50": {
+			"256": "resnet50_256",
+			"128": "resnet50_128",
+			"64": "resnet50_64",
+		},
+		"MobileNet V3 Small": {
+			"256": "mobilenet_v3_small_256",
+			"128": "mobilenet_v3_small_128",
+			"64": "mobilenet_v3_small_64",
+		},
+		"MobileNet V3 Large": {
+			"256": "mobilenet_v3_large_256",
+			"128": "mobilenet_v3_large_128",
+			"64": "mobilenet_v3_large_64",
+		},
+		"ResNet18": {
+			"256": "resnet18_256",
+			"128": "resnet18_128",
+			"64": "resnet18_64",
+		},
+		"EfficientNet-b0": {
+			"256": "efficientnet-b0_256",
+			"128": "efficientnet-b0_128",
+			"64": "efficientnet-b0_64",
+		}
 	};
 
 	let images = $state<Array<File>>([]);
 	let annotationsFile: File | undefined = $state(undefined);
 	let canStartProcessing = $state(false);
 	let isProcessing = $state(false);
-	let selectedModel = $state(Object.keys(models)[0]);
+	let selectedModelName = $state(Object.keys(models)[0]);
+	let selectedModelSize = $state(Object.keys(models[Object.keys(models)[0]])[0]);
 	let tableData: Array<Record<string, number | string>> = $state([]);
 	let tableDataStats: Record<string, number> = $state({});
 	let warmupCount: number = $state(10);
@@ -50,13 +75,17 @@
 
 		const model = new ClassificationModel();
 		model.setUseGPU(useGPU);
+		
+		const modelPath = models[selectedModelName][selectedModelSize];
+		await model.load(modelPath);
 
 		// Warmup
 		const startWarmup = performance.now();
 		for (let i = 0; i < warmupCount; i++) {
 			const image = images[i];
-			await startPipeline(selectedModel, image, annotations, model);
+			await startPipelineWithPerfectAnnotations(modelPath, image, annotations, model, Number.parseInt(selectedModelSize));
 		}
+
 		otherStats.warmupTime = performance.now() - startWarmup;
 
 		// Execution
@@ -65,7 +94,7 @@
 
 			const startExecution = performance.now();
 			
-			const result = await startPipeline(selectedModel, image, annotations, model)
+			const result = await startPipelineWithPerfectAnnotations(modelPath, image, annotations, model, Number.parseInt(selectedModelSize))
 				.catch((error) => {
 					console.error(error);
 				});
@@ -118,13 +147,20 @@
 	}
 
 	function copyTableClipboardAsCvs(): void {
+		const modelPath = models[selectedModelName][selectedModelSize];
+
 		const tableDataWithExtraData = new Array(tableData.length);
+		let index = 0;
+
 		for (const row of tableData) {
-			tableDataWithExtraData.push({
+			tableDataWithExtraData[index] = {
 				...row,
 				with_gpu: useGPU ? 1 : 0,
-				model: selectedModel,
-			});
+				model: modelPath,
+				input_size: Number.parseInt(selectedModelSize),
+			};
+
+			index++;
 		}
 
 		const csvString = objectToCsvString(tableDataWithExtraData);
@@ -141,9 +177,18 @@
 	<h2 class="text-xl">Datos entrada</h2>
 	<div class="flex items-center gap-x-2">
 		<p>Modelo: </p>
-		<select id="modelNames" bind:value={selectedModel} class="px-2 py-1 border rounded">
-			{#each Object.entries(models) as [modelPath, modelName]}
-				<option value={modelPath} class="text-black">{modelName}</option>
+		<select id="modelNames" bind:value={selectedModelName} class="px-2 py-1 border rounded">
+			{#each Object.keys(models) as modelName}
+				<option value={modelName} class="text-black">{modelName}</option>
+			{/each}
+		</select>
+	</div>
+
+	<div class="flex items-center gap-x-2">
+		<p>Tamaño input: </p>
+		<select id="modelNames" bind:value={selectedModelSize} class="px-2 py-1 border rounded">
+			{#each Object.keys(models[selectedModelName]) as modelSize}
+				<option value={modelSize} class="text-black">{modelSize}</option>
 			{/each}
 		</select>
 	</div>

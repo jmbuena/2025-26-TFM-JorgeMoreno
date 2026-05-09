@@ -111,6 +111,13 @@ export function detectFace(src: Mat): { mat: Mat, offset: Rect } | undefined {
 }
 
 
+export function getFaceFromAnnotations(imageMat: Mat, face: Record<'x' | 'y' | 'w' | 'h', number>) {
+	const faceWithMargin = new cv.Rect(new cv.Point(face.x, face.y), new cv.Size(face.w, face.h));
+	
+	return imageMat.roi(faceWithMargin);
+}
+
+
 function downloadHaarCascade(): Promise<void> {
 	return new Promise((resolve) => {
 		let request = new XMLHttpRequest();

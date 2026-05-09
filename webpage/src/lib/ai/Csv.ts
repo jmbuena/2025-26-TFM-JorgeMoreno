@@ -9,6 +9,7 @@ export class AnnotationRow {
 	constructor(
 		readonly filename: string,
 		readonly landmarks: Array<Landmark>,
+		readonly face: { x: number, y: number, w: number, h: number },
 	) {}
 }
 
@@ -24,6 +25,13 @@ export function processCsvFile(fileContents: string): Map<string, AnnotationRow>
 
 		const filename = columns[0].split("/").at(-1) ?? "unknown";
 
+		const face = {
+			x: Number.parseInt(columns[1]),
+			y: Number.parseInt(columns[2]),
+			w: Number.parseInt(columns[3]),
+			h: Number.parseInt(columns[4]),
+		};
+
 		const landmarks: Array<Landmark> = new Array(CSV_LANDMARKS_COUNT);
 
 		for (let i = 0; i < CSV_LANDMARKS_COUNT; i++) {
@@ -38,6 +46,7 @@ export function processCsvFile(fileContents: string): Map<string, AnnotationRow>
 		annotations.set(filename, new AnnotationRow(
 			filename,
 			landmarks,
+			face,
 		));
 	}
 

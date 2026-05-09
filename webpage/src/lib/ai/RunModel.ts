@@ -28,8 +28,8 @@ export class ClassificationModel {
 			? gpuOrt
 			: wasmOrt;
 
-		ort.env.wasm.initTimeout = 10000;
-		ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@dev/dist/";
+		ort.env.wasm.initTimeout = 100000;
+		ort.env.wasm.wasmPaths = `${window.location.origin}/assets/ort_wasm/`;
 
 		const providers = this.useGPU
 			? ["webgpu"]
