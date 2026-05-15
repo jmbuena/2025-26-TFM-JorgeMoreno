@@ -41,7 +41,7 @@ def _read_stat_results(filepath: str):
                 parts = line.split(':')
                 data[section][parts[0]] = float(parts[1].strip())
     
-    return {os.path.basename(filepath).replace('.txt', ''): data}
+    return {os.path.basename(filepath).replace('.txt', '').replace('nme_', ''): data}
 
 
 def _read_stats(files: list[str]) -> dict:
@@ -50,6 +50,8 @@ def _read_stats(files: list[str]) -> dict:
     for file in files:
         file_data = _read_stat_results(file)
         data |= file_data
+
+    data = dict(sorted(data.items()))
     
     return data
 
@@ -92,9 +94,8 @@ def _extract_stats(model_stats: dict, timings: pd.DataFrame):
     return data
         
 
-def _plot(data: dict, draw_gpu: bool, draw_cpu: bool):
+def _plot(data: dict, draw_gpu: bool, draw_cpu: bool, target_model: str | None = None):
     fig, ax = plt.subplots()
-    print(data)
 
     marker_sizes = {
         64: 10,
@@ -111,6 +112,10 @@ def _plot(data: dict, draw_gpu: bool, draw_cpu: bool):
         cpu_points = {'x': [], 'y': [], 's': []}
         gpu_points = {'x': [], 'y': [], 's': []}
 
+        if target_model is not None and not model.startswith(target_model):
+            color_index += 1
+            continue
+
         for input, input_data in inputs.items():
             cpu_points['x'].append(input_data['cpu_mean'])
             cpu_points['y'].append(input_data['nme'])
@@ -125,7 +130,6 @@ def _plot(data: dict, draw_gpu: bool, draw_cpu: bool):
 
             for index in range(len(inputs)):
                 ax.scatter(cpu_points['x'][index], cpu_points['y'][index], color=colors[color_index], marker=markers[index])
-            # ax.scatter(cpu_points['x'], cpu_points['y'], s=cpu_points['s'], color=colors[color_index])
 
         if draw_gpu:
             ax.plot(gpu_points['x'], gpu_points['y'], label=f'{model} (gpu)', linestyle='dashed', color=colors[color_index])
@@ -140,8 +144,8 @@ def _plot(data: dict, draw_gpu: bool, draw_cpu: bool):
     plt.xlabel('Tiempo (ms)')
     plt.ylabel('NME')
 
-    ax.set_xlim(left=0)
-    ax.set_ylim(bottom=0, top=None)
+    # ax.set_xlim(left=0)
+    # ax.set_ylim(bottom=0, top=None)
 
     plt.show()
 
@@ -154,7 +158,45 @@ def main():
     stats = _read_stats(files)
 
     stats = _extract_stats(stats, timings)
-    _plot(stats, draw_cpu=True, draw_gpu=True)
+
+    _plot(stats, draw_cpu=True, draw_gpu=True, target_model='efficient')
+
+    cpu_table = []
+    gpu_table = []
+
+    for model, sizes in stats.items():
+        model = model.replace('_', '\\_')
+
+        for size, data in sizes.items():
+            cpu = f"{model} ({size}) & {data["nme"]:.4f} & {data["cpu_mean"]:.4f} & {data["cpu_std"]:.4f} \\\\"
+
+            cpu_table.append(cpu)
+            cpu_table.append("\\hline")
+
+            gpu = f"{model} ({size}) & {data["nme"]:.4f} & {data["gpu_mean"]:.4f} & {data["gpu_std"]:.4f} \\\\"
+            gpu_table.append(gpu)
+            gpu_table.append("\\hline")
+        
+        cpu_table.append("\\hline")
+        gpu_table.append("\\hline")
+    
+    print("\n".join(gpu_table))
+
+    gains = {}
+    for model, sizes in stats.items():
+        for size, data in sizes.items():
+            gains[f"{model} ({size})"] = {
+                "absolute": data["cpu_mean"] - data["gpu_mean"],
+                "relative": data["cpu_mean"] / data["gpu_mean"],
+            }
+
+    gains_table = []
+    # for model, gain in gains.items():
+    #     model = model.replace('_', '\\_')
+
+    #     row = f"{model} & {gain["absolute"]:.4f} & {gain["relative"]:.3f} \\\\"
+    #     print(row)
+    #     print("\\hline")
 
 
 if __name__ == '__main__':
