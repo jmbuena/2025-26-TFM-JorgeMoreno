@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Face Alignment</title>
+
+	<script src="//unpkg.com/alpinejs" defer></script>
+	<!-- <script async type="module" src="/static/js/face-alignment.mjs"></script> -->
+	<script src="/static/js/demo.js"></script>
+
+	<script>
+		// const models = {
+		// 	"ResNet50": {
+		// 		"256": "resnet50_256",
+		// 		"128": "resnet50_128",
+		// 		"64": "resnet50_64",
+		// 	},
+		// 	"MobileNet V3 Small": {
+		// 		"256": "mobilenet_v3_small_256",
+		// 		"128": "mobilenet_v3_small_128",
+		// 		"64": "mobilenet_v3_small_64",
+		// 	},
+		// 	"MobileNet V3 Large": {
+		// 		"256": "mobilenet_v3_large_256",
+		// 		"128": "mobilenet_v3_large_128",
+		// 		"64": "mobilenet_v3_large_64",
+		// 	},
+		// 	"ResNet18": {
+		// 		"256": "resnet18_256",
+		// 		"128": "resnet18_128",
+		// 		"64": "resnet18_64",
+		// 	},
+		// 	"EfficientNet-b0": {
+		// 		"256": "efficientnet-b0_256",
+		// 		"128": "efficientnet-b0_128",
+		// 		"64": "efficientnet-b0_64",
+		// 	}
+		// };
+
+		// async function runModel(modelPath) {
+		// 	const outputCanvas = document.getElementById("canvas");
+
+		// 	const inputFile = document.getElementById("input-file");
+		// 	const file = inputFile.files[0];
+
+		// 	const faceAlignment = document.getElementById("face-alignment");
+		// 	await loadOpenCV();
+
+		// 	const model = await faceAlignment.loadModel(`/models/${modelPath}.onnx`, true, "ort/");
+		// 	console.log("Loaded model: ", model);
+
+		// 	const results = await faceAlignment.executeModel({
+		// 		file,
+		// 		annotations: undefined,
+		// 		model,
+		// 		inputSize: modelSize,
+		// 		canvas: outputCanvas,
+		// 	});
+		// }
+	</script>
+</head>
+<body>
+
+<div x-data="demo">
+	<h1>Hello</h1>
+
+	<template x-if="hasLoaded">
+		<div>
+			<fieldset class="flex flex-col" style="display: flex; flex-direction: column;">
+				<div>
+					<label for="gpu">Usar GPU</label>
+					<input type="checkbox" name="gpu" id="gpu">
+				</div>
+	
+				<div style="display: flex; gap: 10px;">
+					<template x-for="model in Object.keys(models)">
+						<div style="display: flex; flex-direction: column;">
+							<p x-text="model"></p>
+							<div>
+								<template x-for="size in Object.keys(models[model])">
+									<div style="display: flex; justify-content: end;">
+										<label :for="model + size" x-text="size"></label>
+										<input type="checkbox" :name="model + size" :id="model + size" @change="toggleModel(model, size)">
+									</div>
+								</template>
+							</div>
+						</div>
+					</template>
+				</div>
+	
+				<div>
+					<label for="input-file">Seleccionar imagen de entrada</label>
+					<input type="file" name="input-file" id="input-file">
+				</div>
+			</fieldset>
+		</div>
+	</template>
+
+	<template x-if="!hasLoaded">
+		<div>
+			<p>Loading</p>
+		</div>
+	</template>
+	
+
+	<input type="button" value="Ejecutar" @click="run">
+
+	<template x-for="label in labels" :key="label.colorHex">
+		<div>
+			<label x-text="label.model"></label>
+			(<label x-text="label.size"></label>)
+			<input type="color" x-bind:value="label.colorHex">
+		</div>
+	</template>
+	
+	<canvas id="canvas" style="max-width: 50vw;"></canvas>
+</div>
+
+	<!-- <script>
+		customElements.whenDefined('face-alignment').then(async () => {
+			console.log(customElements.get('face-alignment'));
+
+			const inputFile = document.getElementById("input-file");
+			inputFile.value
+
+			const faceAlignment = document.getElementById("face-alignment");
+			const model = await faceAlignment.loadModel("/models/mobilenet_v3_small_64.onnx", true, "ort/");
+			console.log("Loaded model: ", model);
+
+			faceAlignment.executeModel({
+				file: null,
+				annotations: undefined,
+				model: model,
+				inputSize: 64,
+			});
+		});
+	</script> -->
+	
+</body>
+</html>
