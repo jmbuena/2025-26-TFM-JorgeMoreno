@@ -1,4 +1,4 @@
-import { HandlerSignature, PalAPI } from "./palAPI.ts";
+import { handler, HandlerSignature, PalAPI } from "./palAPI.ts";
 import * as path from "@std/path";
 import * as fs from "@std/fs";
 
@@ -9,12 +9,24 @@ export const router = new PalAPI({
 		"GET": staticFile("./static/"),
 	},
 	"/models/:path": {
-		"GET": staticFile("./static/models/"),
+		"GET": staticFile("./static/models/", true),
 	},
 	"/ort/:path": {
 		"GET": staticFile("./static/ort_wasm/"),
 	},
+	"/webcache.js": {
+		"GET": serviceWorkerFile,
+	},
 });
+
+
+const extensionMapping: Record<string, string> = {
+	".mjs": "text/javascript",
+	".wasm": "application/wasm",
+	".onnx": "application/octet-stream",
+	".js": "text/javascript",
+	".css": "text/css",
+};
 
 
 function html(htmlPath: string): HandlerSignature {
@@ -35,22 +47,36 @@ function localFile(path: string, contentType: string): HandlerSignature {
 	};
 }
 
-const extensionMapping: Record<string, string> = {
-	".mjs": "text/javascript",
-	".wasm": "application/wasm",
-	".onnx": "",
-	".js": "text/javascript",
-};
+
+async function createETag(data: ArrayBuffer): Promise<string> {
+	const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+	const hashArray = [...new Uint8Array(hashBuffer)];
+	return `"${hashArray.map(b => b.toString(16).padStart(2, "0")).join("")}"`;
+}
+
+async function serviceWorkerFile(request: Request) {
+	const fileContents = await Deno.readFile("./static/js/webcache.js");
+
+	const headers: Record<string, string> = {
+		"Content-Type": "text/javascript",
+	};
+
+	return new Response(fileContents, {
+		headers,
+		status: 200,
+	});
+}
+
 
 function staticFile(folder: string): HandlerSignature {
-	return function (request: Request, pathVariables: Record<string, string>): Response {
+	return async function (request: Request, pathVariables: Record<string, string>): Promise<Response> {
 		const filePath = pathVariables["path"];
 
 		const completeFilePath = folder + filePath;
 
 		console.log("Reading ", completeFilePath);
 
-		if (!fs.existsSync(completeFilePath)) {
+		if (!await fs.exists(completeFilePath)) {
 			console.error("File does not exists");
 
 			return new Response(null, {
@@ -58,15 +84,17 @@ function staticFile(folder: string): HandlerSignature {
 			});
 		}
 
-		const fileContents = Deno.readFileSync(completeFilePath);
+		const fileContents = await Deno.readFile(completeFilePath);
 
 		const fileExtension = path.extname(filePath);
 		const contentType = extensionMapping[fileExtension];
 
+		const headers: Record<string, string> = {
+			"Content-Type": contentType,
+		};
+
 		return new Response(fileContents, {
-			headers: {
-				"Content-Type": contentType,
-			},
+			headers,
 			status: 200,
 		});
 	};

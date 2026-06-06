@@ -29,21 +29,21 @@ const models = {
 };
 
 const colors = [
-	[47, 79, 79], // darkslategray
+	[0, 0, 255], // blue
+	[255, 0, 0], // red
+	[0, 255, 0], // lime
+	[75, 0, 130], // indigo
+	[255, 165, 0], // orange
+	[255, 105, 180], // hotpink
 	[139, 69, 19], // saddlebrown
 	[0, 100, 0], // darkgreen
-	[75, 0, 130], // indigo
-	[255, 0, 0], // red
 	[0, 206, 209], // darkturquoise
-	[255, 165, 0], // orange
 	[255, 255, 0], // yelllow
-	[0, 255, 0], // lime
-	[0, 0, 255], // blue
 	[255, 0, 255], // fuchsia
 	[30, 144, 255], // dodgerblue
 	[152, 251, 152], // palegreen
 	[255, 218, 185], // peachpuff
-	[255, 105, 180], // hotpink
+	[47, 79, 79], // darkslategray
 ];
 
 let haarLoaded = false;
@@ -86,125 +86,154 @@ function componentToHex(c) {
 	return hex.length == 1 ? "0" + hex : hex;
 }
 
-async function runModels(models, pointSize = 3) {
-	const outputCanvas = document.getElementById("canvas");
-
-	const inputFile = document.getElementById("input-file");
-	const file = inputFile.files[0];
-
+async function runModels(models, images, useGpu, pointSize = 3) {
 	const faceAlignment = await faceAlignmentPromise;
 	await faceAlignment.loadOpenCV();
 	console.log("OpenCV ready!")
 
 	await downloadAndLoadHaar(faceAlignment, "/static/xml/haarcascade_frontalface_default.xml");
-	console.log("Haar Cascade ready!")
+	console.log("Haar Cascade ready!");
 
-	const labels = [];
+	console.log("useGPU", useGpu);
 
-	const imageData = await faceAlignment.getImageDataFromFile(file);
-	const originalMat = faceAlignment.imageDataToMat(imageData);
-	const faceData = faceAlignment.detectFace(originalMat);
+	const results = [];
 
-	if (!faceData || !faceData.mat) {
-		console.error("No face detected");
+	for (const image of images) {
+		const labels = [];
+	
+		const imageData = await faceAlignment.getImageDataFromFile(image);
+		const originalMat = faceAlignment.imageDataToMat(imageData);
+		const faceData = faceAlignment.detectFace(originalMat);
+	
+		if (!faceData || !faceData.mat) {
+			console.error("No face detected");
 
-		return undefined;
-	}
+			results.push({
+				labels: [],
+				imageData,
+			});
+	
+			continue;
+		}
+	
+		let colorIndex = 0;
 
-	let colorIndex = 0;
-
-	for (const modelData of models) {
-		const { model, size, modelPath } = modelData;
-
-		const imageTensor = faceAlignment.imageDataToTensor(
-			faceAlignment.matToImageData(
-				faceAlignment.resizeImage(
-					faceData.mat,
-					[size, size]
+		for (const modelData of models) {
+			const { model, size, modelPath } = modelData;
+	
+			const imageTensor = faceAlignment.imageDataToTensor(
+				faceAlignment.matToImageData(
+					faceAlignment.resizeImage(
+						faceData.mat,
+						[size, size]
+					)
 				)
-			)
-		);
+			);
+	
+			const loadedModel = loadedModels[modelPath] !== undefined
+				? loadedModels[modelPath]
+				: await faceAlignment.loadModel(`/models/${modelPath}.onnx`, useGpu, "ort/");
+	
+			loadedModels[modelPath] = loadedModel;
+	
+			const modelResults = await loadedModel.runModel(imageTensor);
+			if (!modelResults) {
+				continue;
+			}
 
-		console.log(loadedModels);
-
-		const loadedModel = loadedModels[modelPath] !== undefined
-			? loadedModels[modelPath]
-			: await faceAlignment.loadModel(`/models/${modelPath}.onnx`, true, "ort/");
-
-		loadedModels[modelPath] = loadedModel;
-		console.log(loadedModels);
-
-		const modelResults = await loadedModel.runModel(imageTensor);
-
-		const color = [...colors[colorIndex], 255];
-		colorIndex++;
-
-		faceAlignment.drawFacePointsWithOffset(originalMat, faceData.mat, modelResults, faceData.offset, color, pointSize);
-
-		labels.push({
-			model,
-			size,
-			colorHex: `#${componentToHex(color[0])}${componentToHex(color[1])}${componentToHex(color[2])}`,
+			const color = [...colors[colorIndex], 255];
+			colorIndex++;
+	
+			faceAlignment.drawFacePointsWithOffset(originalMat, faceData.mat, modelResults.output, faceData.offset, color, pointSize);
+	
+			labels.push({
+				model,
+				size,
+				colorHex: `#${componentToHex(color[0])}${componentToHex(color[1])}${componentToHex(color[2])}`,
+				time: modelResults.elapsed.toFixed(2),
+				style: {
+					"background-color": `#${componentToHex(color[0])}${componentToHex(color[1])}${componentToHex(color[2])}`,
+				},
+			});
+		}
+	
+		const paintedImageData = faceAlignment.matToImageData(originalMat);
+	
+		results.push({
+			labels,
+			imageData: paintedImageData,
 		});
-
-		// results.push({
-		// 	model,
-		// 	size,
-		// 	modelPath,
-		// 	results: modelResults,
-		// });
 	}
 
-	const paintedImageData = faceAlignment.matToImageData(originalMat);
-	outputCanvas.width = paintedImageData.width;
-	outputCanvas.height = paintedImageData.height;
+	return results;
+}
 
-	faceAlignment.showImageDataInCanvas(
-		paintedImageData,
-		outputCanvas,
-	);
+async function renderResults(results) {
+	const faceAlignment = await faceAlignmentPromise;
 
-	console.log(labels);
+	results.forEach((result, index) => {
+		const canvas = document.getElementById("canvas_" + index);
 
-	return labels;
-
-	// console.log("Loaded model: ", model);
-
-	// const results = await faceAlignment.executeModel({
-	// 	file,
-	// 	annotations: undefined,
-	// 	model,
-	// 	inputSize: modelSize,
-	// 	canvas: outputCanvas,
-	// });
+		canvas.width = result.imageData.width;
+		canvas.height = result.imageData.height;
+		
+		faceAlignment.showImageDataInCanvas(
+			result.imageData,
+			canvas,
+		);
+	});
 }
 
 document.addEventListener('alpine:init', () => {
 	Alpine.data('demo', () => ({
-		selectedModel: '',
-		selectedSize: '',
-		selectedModels: [],
+		selectedModels: new Map(),
 		hasLoaded: false,
-		labels: [],
+		results: [],
+		useGpu: false,
+		selectedImages: [],
+		isProcessing: false,
 
 		init() {
 			faceAlignmentPromise.then(() => {
 				this.hasLoaded = true;
+
+				this.$nextTick(() => {
+					const inputFile = document.getElementById("input-file");
+					inputFile.addEventListener("change", () => {
+						this.selectedImages = inputFile.files;
+					});
+				});
 			});
+
+			if ("serviceWorker" in navigator) {
+				navigator.serviceWorker.register("/webcache.js")
+					.then(() => {
+						console.log("Cache ready!");
+					});
+			}
+
 		},
 		
-		run() {
-			this.labels = runModels(this.selectedModels);
+		async run() {
+			this.isProcessing = true;
+			console.log("USE GPU PLEASE", this.useGpu);
+
+			this.results = await runModels(Array.from(this.selectedModels.values()), this.selectedImages, this.useGpu, 4);
+
+			this.$nextTick(async () => {
+				await renderResults(this.results);
+
+				this.isProcessing = false;
+			});
 		},
 
 		toggleModel(model, size) {
 			const modelPath = models[model][size];
-			const index = this.selectedModels.indexOf(modelPath);
 
-			if (index >= 0) {
-				this.selectedModels.splice(index, 1);
+			if (this.selectedModels.has(modelPath)) {
+				this.selectedModels.delete(modelPath);
 			} else {
-				this.selectedModels.push({
+				this.selectedModels.set(modelPath, {
 					modelPath,
 					model,
 					size: Number.parseInt(size),

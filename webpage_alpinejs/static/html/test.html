@@ -4,138 +4,91 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Face Alignment</title>
-
+	
+	<!-- SCRIPTS -->
 	<script src="//unpkg.com/alpinejs" defer></script>
-	<!-- <script async type="module" src="/static/js/face-alignment.mjs"></script> -->
 	<script src="/static/js/demo.js"></script>
 
-	<script>
-		// const models = {
-		// 	"ResNet50": {
-		// 		"256": "resnet50_256",
-		// 		"128": "resnet50_128",
-		// 		"64": "resnet50_64",
-		// 	},
-		// 	"MobileNet V3 Small": {
-		// 		"256": "mobilenet_v3_small_256",
-		// 		"128": "mobilenet_v3_small_128",
-		// 		"64": "mobilenet_v3_small_64",
-		// 	},
-		// 	"MobileNet V3 Large": {
-		// 		"256": "mobilenet_v3_large_256",
-		// 		"128": "mobilenet_v3_large_128",
-		// 		"64": "mobilenet_v3_large_64",
-		// 	},
-		// 	"ResNet18": {
-		// 		"256": "resnet18_256",
-		// 		"128": "resnet18_128",
-		// 		"64": "resnet18_64",
-		// 	},
-		// 	"EfficientNet-b0": {
-		// 		"256": "efficientnet-b0_256",
-		// 		"128": "efficientnet-b0_128",
-		// 		"64": "efficientnet-b0_64",
-		// 	}
-		// };
-
-		// async function runModel(modelPath) {
-		// 	const outputCanvas = document.getElementById("canvas");
-
-		// 	const inputFile = document.getElementById("input-file");
-		// 	const file = inputFile.files[0];
-
-		// 	const faceAlignment = document.getElementById("face-alignment");
-		// 	await loadOpenCV();
-
-		// 	const model = await faceAlignment.loadModel(`/models/${modelPath}.onnx`, true, "ort/");
-		// 	console.log("Loaded model: ", model);
-
-		// 	const results = await faceAlignment.executeModel({
-		// 		file,
-		// 		annotations: undefined,
-		// 		model,
-		// 		inputSize: modelSize,
-		// 		canvas: outputCanvas,
-		// 	});
-		// }
-	</script>
+	<!-- CSS -->
+	<link rel="stylesheet" href="/static/css/output.css">
 </head>
 <body>
 
-<div x-data="demo">
-	<h1>Hello</h1>
+<div x-data="demo" class="p-5 flex flex-col gap-y-5">
+	<h1 class="text-xl">Model explorer - TFM Jorge Moreno</h1>
 
 	<template x-if="hasLoaded">
-		<div>
-			<fieldset class="flex flex-col" style="display: flex; flex-direction: column;">
-				<div>
-					<label for="gpu">Usar GPU</label>
-					<input type="checkbox" name="gpu" id="gpu">
-				</div>
-	
-				<div style="display: flex; gap: 10px;">
+		<div class="flex flex-col gap-y-2">
+			<div>
+				<label for="input-file">Seleccionar imagenes: </label>
+				<label for="input-file" x-text="selectedImages.length + ' imagen(es) seleccionadas'" :class="selectedImages.length === 0 ? 'text-error' : 'text-success'"></label>
+				<input type="file" name="input-file" id="input-file" class="hidden" multiple>
+			</div>
+
+			<div class="flex items-center gap-x-1">
+				<label for="gpu">Usar GPU</label>
+				<input type="checkbox" name="gpu" id="gpu" class="checkbox checkbox-primary" x-model="useGpu">
+			</div>
+
+			<div>
+				<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-y-2 gap-x-3">
 					<template x-for="model in Object.keys(models)">
-						<div style="display: flex; flex-direction: column;">
-							<p x-text="model"></p>
-							<div>
+						<div class="flex flex-col border rounded-box px-2 py-1">
+							<p x-text="model" class="font-semibold"></p>
+							<div class="grid grid-cols-1 gap-y-1">
 								<template x-for="size in Object.keys(models[model])">
-									<div style="display: flex; justify-content: end;">
+									<div class="flex justify-between">
 										<label :for="model + size" x-text="size"></label>
-										<input type="checkbox" :name="model + size" :id="model + size" @change="toggleModel(model, size)">
+										<input type="checkbox" class="checkbox checkbox-primary" :name="model + size" :id="model + size" @change="toggleModel(model, size)">
 									</div>
 								</template>
 							</div>
 						</div>
 					</template>
 				</div>
-	
-				<div>
-					<label for="input-file">Seleccionar imagen de entrada</label>
-					<input type="file" name="input-file" id="input-file">
-				</div>
-			</fieldset>
+			</div>
+
+			<div class="w-full md:w-auto">
+				<input type="button" value="Ejecutar" @click="await run()" class="btn btn-primary" :disabled="isProcessing || selectedImages.length === 0 || selectedModels.size === 0">
+
+				<span x-show="isProcessing">
+					Loading
+					<span class="loading loading-spinner loading-sm"></span>
+				</span>
+			</div>
 		</div>
 	</template>
 
 	<template x-if="!hasLoaded">
 		<div>
-			<p>Loading</p>
+			<p>
+				Loading
+				<span class="loading loading-spinner loading-sm"></span>
+			</p>
 		</div>
 	</template>
-	
 
-	<input type="button" value="Ejecutar" @click="run">
+	<!-- Display results -->
+	<div class="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+		<template x-for="(result, index) in results">
+			<div class="p-5">
+				<template x-for="label in result.labels" :key="label.colorHex" x-show="result.labels.length > 0">
+					<div class="flex items-center mb-2">
+						<div class="w-3 h-3 mr-1 rounded-full border border-white" :style="label.style"></div>
+						<span x-text="`${label.model} - ${label.size} (${label.time} ms)`" class="label text-sm"></span>
+					</div>
+				</template>
 
-	<template x-for="label in labels" :key="label.colorHex">
-		<div>
-			<label x-text="label.model"></label>
-			(<label x-text="label.size"></label>)
-			<input type="color" x-bind:value="label.colorHex">
-		</div>
-	</template>
+				<template x-if="result.labels.length === 0">
+					<p class="label text-sm">No se ha encontrado ninguna cara</p>
+				</template>
 	
-	<canvas id="canvas" style="max-width: 50vw;"></canvas>
+				<canvas :id="'canvas_' + index" class="w-full"></canvas>
+			</div>
+		</template>
+	</div>
+
 </div>
-
-	<!-- <script>
-		customElements.whenDefined('face-alignment').then(async () => {
-			console.log(customElements.get('face-alignment'));
-
-			const inputFile = document.getElementById("input-file");
-			inputFile.value
-
-			const faceAlignment = document.getElementById("face-alignment");
-			const model = await faceAlignment.loadModel("/models/mobilenet_v3_small_64.onnx", true, "ort/");
-			console.log("Loaded model: ", model);
-
-			faceAlignment.executeModel({
-				file: null,
-				annotations: undefined,
-				model: model,
-				inputSize: 64,
-			});
-		});
-	</script> -->
 	
 </body>
 </html>
