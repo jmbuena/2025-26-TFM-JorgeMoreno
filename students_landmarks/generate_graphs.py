@@ -109,12 +109,12 @@ def _plot(data: dict, draw_gpu: bool, draw_cpu: bool, target_model: str | None =
     color_index = 0
 
     for model, inputs in data.items():
-        cpu_points = {'x': [], 'y': [], 's': []}
-        gpu_points = {'x': [], 'y': [], 's': []}
-
         if target_model is not None and not model.startswith(target_model):
             color_index += 1
             continue
+
+        cpu_points = {'x': [], 'y': [], 's': []}
+        gpu_points = {'x': [], 'y': [], 's': []}
 
         for input, input_data in inputs.items():
             cpu_points['x'].append(input_data['cpu_mean'])
@@ -149,18 +149,7 @@ def _plot(data: dict, draw_gpu: bool, draw_cpu: bool, target_model: str | None =
 
     plt.show()
 
-
-def main():
-    files = find_files('./time_measurements/', ['**', '*.csv'])
-    timings = _read_csv(files)
-
-    files = find_files('./stat_results/', ['**', '*.txt'])
-    stats = _read_stats(files)
-
-    stats = _extract_stats(stats, timings)
-
-    _plot(stats, draw_cpu=True, draw_gpu=True, target_model='efficient')
-
+def _print_as_latex_table(stats: dict):
     cpu_table = []
     gpu_table = []
 
@@ -199,6 +188,75 @@ def main():
     #     print("\\hline")
 
 
-if __name__ == '__main__':
-    main()
+def _draw_stds(stats: dict, draw_cpu: bool, draw_gpu: bool, target_model: str | None = None):
+    marker_sizes = {
+        64: 10,
+        128: 25,
+        256: 50,
+    }
 
+    markers = ['.', '^', 's']
+
+    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    color_index = 0
+
+    fig, ax = plt.subplots()
+
+    for model, inputs in stats.items():
+        if target_model is not None and not model.startswith(target_model):
+            color_index += 1
+            continue
+
+        cpu_points = {'x': [], 'y': [], 's': [], 'std': []}
+        gpu_points = {'x': [], 'y': [], 's': [], 'std': []}
+
+        for input, input_data in inputs.items():
+            cpu_points['x'].append(input_data['cpu_mean'])
+            cpu_points['y'].append(input_data['nme'])
+            cpu_points['std'].append(input_data['cpu_std'])
+            cpu_points['s'].append(marker_sizes[input])
+
+            gpu_points['x'].append(input_data['gpu_mean'])
+            gpu_points['y'].append(input_data['nme'])
+            gpu_points['std'].append(input_data['gpu_std'])
+            gpu_points['s'].append(marker_sizes[input])
+
+        if draw_cpu:
+            ax.errorbar(cpu_points['x'], cpu_points['y'], xerr=cpu_points['std'], label=f'{model} (cpu)', color=colors[color_index], capsize=3)
+
+            for index in range(len(inputs)):
+                ax.scatter(cpu_points['x'][index], cpu_points['y'][index], color=colors[color_index], marker=markers[index], s=20)
+        
+        if draw_gpu:
+            ax.errorbar(gpu_points['x'], gpu_points['y'], xerr=gpu_points['std'], label=f'{model} (gpu)', linestyle='dashed', color=colors[color_index], capsize=3)
+
+            for index in range(len(inputs)):
+                ax.scatter(gpu_points['x'][index], gpu_points['y'][index],  color=colors[color_index], marker=markers[index], s=20)
+
+        ax.legend()
+
+        color_index += 1
+    
+    plt.xlabel('Tiempo (ms)')
+    plt.ylabel('NME')
+
+    plt.show()
+
+
+def main(draw_cpu: bool, draw_gpu: bool, filter_models: str | None):
+    files = find_files('./time_measurements/', ['**', '*.csv'])
+    timings = _read_csv(files)
+
+    files = find_files('./stat_results/', ['**', '*.txt'])
+    stats = _read_stats(files)
+
+    stats = _extract_stats(stats, timings)
+
+    # _plot(stats, draw_cpu=draw_cpu, draw_gpu=draw_gpu, target_model=filter_models)
+    _draw_stds(stats, draw_cpu=draw_cpu, draw_gpu=draw_gpu, target_model=filter_models)
+    # _print_as_latex_table(stats)
+    
+
+
+if __name__ == '__main__':
+    main(draw_cpu=True, draw_gpu=True, filter_models='mobilenet')
