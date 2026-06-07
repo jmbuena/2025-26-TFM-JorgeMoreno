@@ -1,0 +1,19 @@
+{
+	"scripts": {
+		"dev": "vite",
+		"build": "vite build"
+	},
+	"dependencies": {
+		"lit": "^3.3.3",
+		"@tailwindcss/vite": "^4.1.14",
+		"@techstark/opencv-js": "^4.11.0-release.1",
+		"csvtojson": "^2.0.14",
+		"onnxruntime-web": "^1.23.0",
+		"tailwindcss": "^4.1.14"
+	},
+	"devDependencies": {
+		"vite": "^7.1.7",
+		"typescript": "~5.9.3",
+		"@types/node": "^24.6.0"
+	}
+}
