@@ -1,15 +1,21 @@
-import { handler, HandlerSignature, PalAPI } from "./palAPI.ts";
+import { HandlerSignature, PalAPI } from "./palAPI.ts";
 import * as path from "@std/path";
 import * as fs from "@std/fs";
 
 
 export const router = new PalAPI({
-	"GET": html("./static/html/test.html"),
+	"GET": html("./static/html/index.html"),
+	"/images": {
+		"GET": html("./static/html/test.html"),
+	},
+	"/live": {
+		"GET": html("./static/html/live.html"),
+	},
 	"/static/...path": {
 		"GET": staticFile("./static/"),
 	},
 	"/models/:path": {
-		"GET": staticFile("./static/models/", true),
+		"GET": staticFile("./static/models/"),
 	},
 	"/ort/:path": {
 		"GET": staticFile("./static/ort_wasm/"),

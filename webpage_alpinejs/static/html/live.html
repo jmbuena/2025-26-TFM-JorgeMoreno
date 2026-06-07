@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Face Alignment</title>
+	
+	<!-- SCRIPTS -->
+	<script src="//unpkg.com/alpinejs" defer></script>
+	<script src="/static/js/live.js"></script>
+
+	<!-- CSS -->
+	<link rel="stylesheet" href="/static/css/output.css">
+</head>
+<body>
+
+<div x-data="live" class="p-5 flex flex-col gap-y-5">
+	<h1 class="text-3xl">Facial alignment</h1>
+	<h2 class="text-xl">TFM Jorge Moreno</h2>
+
+	<template x-if="hasLoaded">
+		<div class="flex flex-col gap-y-2">
+			<div class="flex items-center gap-x-1">
+				<label for="gpu">Usar GPU</label>
+				<input type="checkbox" name="gpu" id="gpu" class="checkbox checkbox-primary" x-model="useGpu" :disabled="isProcessing">
+			</div>
+
+			<div>
+				<p>Selecciona el modelo:</p>
+				<div class="join">
+					<template x-for="model in Array.from(Object.keys(models))">
+						<input type="radio" class="join-item btn" name="model" @click="selectModel(model)" :aria-label="model" :disabled="isProcessing">
+					</template>
+				</div>
+			</div>
+
+			<div>
+				<template x-if="selectedModelName">
+					<div>
+						<p>Selecciona el tamaño:</p>
+	
+						<div class="join">
+							<template x-for="size in Object.keys(models[selectedModelName])">
+								<input type="radio" @click="selectModelSize(size)" class="join-item btn" name="size" :value="size" :aria-label="size" :disabled="isProcessing">
+							</template>
+						</div>
+					</div>
+				</template>
+			</div>
+
+			<div class="w-full md:w-auto">
+				<button @click="startRecording" class="btn btn-primary" :disabled="isProcessing || selectedModelSize === undefined">
+					<span>Ejecutar</span>
+				</button>
+
+				<button @click="stopProcessing()" class="btn btn-primary" :disabled="!isProcessing">
+					<span>Parar</span>
+				</button>
+			</div>
+
+			<div>
+				<canvas class="w-full" x-ref="canvas"></video>
+			</div>
+		</div>
+	</template>
+
+	<template x-if="!hasLoaded">
+		<div>
+			<p>
+				Loading
+				<span class="loading loading-spinner loading-sm"></span>
+			</p>
+		</div>
+	</template>
+</div>
+	
+</body>
+</html>

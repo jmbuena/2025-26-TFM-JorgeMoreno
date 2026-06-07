@@ -89,7 +89,7 @@ function componentToHex(c) {
 async function runModels(models, images, useGpu, pointSize = 3) {
 	const faceAlignment = await faceAlignmentPromise;
 	await faceAlignment.loadOpenCV();
-	console.log("OpenCV ready!")
+	console.log("OpenCV ready!");
 
 	await downloadAndLoadHaar(faceAlignment, "/static/xml/haarcascade_frontalface_default.xml");
 	console.log("Haar Cascade ready!");
@@ -108,6 +108,8 @@ async function runModels(models, images, useGpu, pointSize = 3) {
 		if (!faceData || !faceData.mat) {
 			console.error("No face detected");
 
+			originalMat.delete();
+
 			results.push({
 				labels: [],
 				imageData,
@@ -118,17 +120,16 @@ async function runModels(models, images, useGpu, pointSize = 3) {
 	
 		let colorIndex = 0;
 
+		const pointSizeRelative = Math.max(1, (faceData.mat.size().width / 800) * pointSize);
+
 		for (const modelData of models) {
 			const { model, size, modelPath } = modelData;
+
+			const faceResized = faceAlignment.resizeImage(faceData.mat, [size, size]);
 	
-			const imageTensor = faceAlignment.imageDataToTensor(
-				faceAlignment.matToImageData(
-					faceAlignment.resizeImage(
-						faceData.mat,
-						[size, size]
-					)
-				)
-			);
+			const imageTensor = faceAlignment.imageDataToTensor(faceAlignment.matToImageData(faceResized));
+
+			faceResized.delete();
 	
 			const loadedModel = loadedModels[modelPath] !== undefined
 				? loadedModels[modelPath]
@@ -137,6 +138,9 @@ async function runModels(models, images, useGpu, pointSize = 3) {
 			loadedModels[modelPath] = loadedModel;
 	
 			const modelResults = await loadedModel.runModel(imageTensor);
+
+			imageTensor.dispose();
+
 			if (!modelResults) {
 				continue;
 			}
@@ -144,7 +148,7 @@ async function runModels(models, images, useGpu, pointSize = 3) {
 			const color = [...colors[colorIndex], 255];
 			colorIndex++;
 	
-			faceAlignment.drawFacePointsWithOffset(originalMat, faceData.mat, modelResults.output, faceData.offset, color, pointSize);
+			faceAlignment.drawFacePointsWithOffset(originalMat, faceData.mat, modelResults.output, faceData.offset, color, pointSizeRelative);
 	
 			labels.push({
 				model,
@@ -158,6 +162,9 @@ async function runModels(models, images, useGpu, pointSize = 3) {
 		}
 	
 		const paintedImageData = faceAlignment.matToImageData(originalMat);
+
+		originalMat.delete();
+		faceData.mat.delete();
 	
 		results.push({
 			labels,
@@ -193,7 +200,7 @@ document.addEventListener('alpine:init', () => {
 		selectedImages: [],
 		isProcessing: false,
 
-		init() {
+		async init() {
 			faceAlignmentPromise.then(() => {
 				this.hasLoaded = true;
 
@@ -206,12 +213,14 @@ document.addEventListener('alpine:init', () => {
 			});
 
 			if ("serviceWorker" in navigator) {
-				navigator.serviceWorker.register("/webcache.js")
+				await navigator.serviceWorker.register("/webcache.js")
 					.then(() => {
 						console.log("Cache ready!");
+					})
+					.catch(() => {
+						console.error("Service worker 'webcache' could not be registered");
 					});
 			}
-
 		},
 		
 		async run() {

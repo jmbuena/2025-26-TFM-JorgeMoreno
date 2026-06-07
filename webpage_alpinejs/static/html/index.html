@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Face Alignment</title>
+	
+	<!-- CSS -->
+	<link rel="stylesheet" href="/static/css/output.css">
+</head>
+<body>
+
+<div x-data="live" class="p-5 flex flex-col gap-y-5">
+	<h1 class="text-3xl">Facial alignment</h1>
+	<h2 class="text-xl">TFM Jorge Moreno</h2>
+
+	<p>
+		Hay disponibles dos modos de probar la aplicación:
+	</p>
+
+	<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+		<a href="/images" class="px-3 py-2 border rounded-lg hover:bg-base-300">
+			<div>
+				<p class="font-semibold">Probar con imagenes</p>
+				<p>Permite comparar varios modelos entre sí en tus imágenes.</p>
+			</div>
+		</a>
+
+		<a href="/live" class="px-3 py-2 border rounded-lg hover:bg-base-300">
+			<div>
+				<p class="font-semibold">Probar con cámara en tiempo real</p>
+				<p>Se conecta con la cámara del dispositivo para realizar el procesamiento en tiempo real.</p>
+			</div>
+		</a>
+	</div>
+
+</div>
+	
+</body>
+</html>
