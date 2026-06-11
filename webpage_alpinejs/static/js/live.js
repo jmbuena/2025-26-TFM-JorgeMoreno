@@ -30,7 +30,7 @@ const models = {
 };
 
 const colors = [
-	[0, 0, 255], // blue
+	[0, 0, 255, 255], // blue
 	[255, 0, 0], // red
 	[0, 255, 0], // lime
 	[75, 0, 130], // indigo
@@ -60,10 +60,19 @@ document.addEventListener('alpine:init', () => {
 		stop: false,
 		selectedModelName: undefined,
 		selectedModelSize: undefined,
+		frames: 0,
+		fps: 0,
+		lastFrameTime: 0,
+		downloadingModel: false,
+		faceAlignment: undefined,
+		resolutionScaling: 1,
+		resolution: undefined,
 
 		async init() {
-			faceAlignmentPromise.then(() => {
+			faceAlignmentPromise.then((faceAlignment) => {
 				this.hasLoaded = true;
+
+				this.faceAlignment = faceAlignment;
 			});
 
 			if ("serviceWorker" in navigator) {
@@ -131,6 +140,12 @@ document.addEventListener('alpine:init', () => {
 				model: this.selectedModelName,
 			};
 
+			this.downloadingModel = true
+			const loadedModel = await prepareModel(selectedModel.modelPath, this.useGpu, this.faceAlignment);
+			this.downloadingModel = false;
+
+			this.lastFrameTime = performance.now();
+
 			while (true) {
 				const { done, value } = await reader.read();
 
@@ -144,16 +159,30 @@ document.addEventListener('alpine:init', () => {
 					break;
 				}
 
+				const currentResolution = [width * this.resolutionScaling, height * this.resolutionScaling];
+				const imageRescale = this.resolutionScaling === 1 ? undefined : currentResolution;
+				this.resolution = `${currentResolution[0]}x${currentResolution[1]}`;
+
+				const now = performance.now();
+				if (now - this.lastFrameTime > 1000) {
+					this.lastFrameTime = now;
+					this.fps = this.frames;
+					this.frames = 0;
+				}
+
 				if (value) {
 					context.drawImage(value, 0, 0);
 
 					const imageData = context.getImageData(0, 0, width, height);
-					const result = await runModels(selectedModel, imageData, this.useGpu, 4)
+
+					const result = await runModels(selectedModel, loadedModel, imageData, imageRescale, 4)
 						.catch((e) => {
 							console.error("Error trying to run the model...", e);
 
 							return undefined;
 						});
+					
+					this.frames++;
 
 					if (!result) {
 						canvasContext.drawImage(await createImageBitmap(imageData), 0, 0, width, height);
@@ -210,10 +239,26 @@ async function prepareLibraries() {
 }
 
 
-async function runModels(modelData, imageData, useGpu, pointSize = 3) {
+async function prepareModel(modelPath, useGpu, faceAlignment) {
+	const loadedModel = loadedModels[modelPath] !== undefined
+		? loadedModels[modelPath]
+		: await faceAlignment.loadModel(`/models/${modelPath}.onnx`, useGpu, "ort/");
+
+	loadedModels[modelPath] = loadedModel;
+
+	return loadedModel;
+}
+
+
+async function runModels(modelData, loadedModel, imageData, imageRescale, pointSize = 3) {
 	const faceAlignment = await faceAlignmentPromise;
 
-	const originalMat = faceAlignment.imageDataToMat(imageData);
+	let originalMat = faceAlignment.imageDataToMat(imageData);
+	if (imageRescale !== undefined) {
+		const unusedOriginalMat = originalMat;
+		originalMat = faceAlignment.resizeImage(originalMat, imageRescale);
+		unusedOriginalMat.delete();
+	}
 	const faceData = faceAlignment.detectFace(originalMat);
 
 	if (!faceData || !faceData.mat) {
@@ -222,17 +267,11 @@ async function runModels(modelData, imageData, useGpu, pointSize = 3) {
 		return undefined;
 	}
 
-	const { size, modelPath } = modelData;
+	const { size } = modelData;
 
 	const faceResized = faceAlignment.resizeImage(faceData.mat, [size, size]);
 
 	const imageTensor = faceAlignment.imageDataToTensor(faceAlignment.matToImageData(faceResized));
-
-	const loadedModel = loadedModels[modelPath] !== undefined
-		? loadedModels[modelPath]
-		: await faceAlignment.loadModel(`/models/${modelPath}.onnx`, useGpu, "ort/");
-
-	loadedModels[modelPath] = loadedModel;
 
 	const modelResults = await loadedModel.runModel(imageTensor);
 

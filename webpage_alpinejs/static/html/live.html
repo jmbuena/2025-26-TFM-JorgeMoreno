@@ -37,7 +37,7 @@
 			<div>
 				<template x-if="selectedModelName">
 					<div>
-						<p>Selecciona el tamaño:</p>
+						<p>Selecciona el tamaño de la entrada al modelo:</p>
 	
 						<div class="join">
 							<template x-for="size in Object.keys(models[selectedModelName])">
@@ -48,6 +48,16 @@
 				</template>
 			</div>
 
+			<div>
+				<label for="resolution" class="block">Resolución de entrada al detector facial:</label>
+
+				<div class="join">
+					<input type="radio" @click="resolutionScaling = 1" class="join-item btn" name="resolution" value="1" aria-label="Original" checked="true">
+					<input type="radio" @click="resolutionScaling = 0.5" class="join-item btn" name="resolution" value="0.5" aria-label="1/2">
+					<input type="radio" @click="resolutionScaling = 0.25" class="join-item btn" name="resolution" value="0.25" aria-label="1/4">
+				</div>
+			</div>
+
 			<div class="w-full md:w-auto">
 				<button @click="startRecording" class="btn btn-primary" :disabled="isProcessing || selectedModelSize === undefined">
 					<span>Ejecutar</span>
@@ -56,10 +66,18 @@
 				<button @click="stopProcessing()" class="btn btn-primary" :disabled="!isProcessing">
 					<span>Parar</span>
 				</button>
+
+				<span x-show="isProcessing && downloadingModel" class="">
+					<span class="loading loading-spinner loading-sm"></span>
+					Descargando el modelo...
+				</span>
 			</div>
 
-			<div>
-				<canvas class="w-full" x-ref="canvas"></video>
+			<div class="relative">
+				<div class="absolute top-2 left-3 px-2 py-1 bg-black rounded-lg">
+					<span x-text="fps + ' FPS @ ' + resolution"  class="label"></span>
+				</div>
+				<canvas class="w-full max-w-3/4" x-ref="canvas"></video>
 			</div>
 		</div>
 	</template>
