@@ -48,17 +48,26 @@
 				</template>
 			</div>
 
-			<div>
-				<label for="resolution" class="block">Resolución de entrada al detector facial:</label>
+			<div class="space-y-2">
+				<h2 class="text-xl">Optimizaciones</h2>
 
-				<div class="join">
-					<input type="radio" @click="resolutionScaling = 1" class="join-item btn" name="resolution" value="1" aria-label="Original" checked="true">
-					<input type="radio" @click="resolutionScaling = 0.5" class="join-item btn" name="resolution" value="0.5" aria-label="1/2">
-					<input type="radio" @click="resolutionScaling = 0.25" class="join-item btn" name="resolution" value="0.25" aria-label="1/4">
+				<div>
+					<label for="resolution" class="block">Resolución de entrada al detector facial:</label>
+	
+					<div class="join">
+						<input type="radio" @click="resolutionScaling = 1" class="join-item btn" name="resolution" value="1" aria-label="Original" checked="true">
+						<input type="radio" @click="resolutionScaling = 0.5" class="join-item btn" name="resolution" value="0.5" aria-label="1/2">
+						<input type="radio" @click="resolutionScaling = 0.25" class="join-item btn" name="resolution" value="0.25" aria-label="1/4">
+					</div>
+				</div>
+
+				<div class="flex items-center gap-x-1">
+					<label for="interpolate">Interpolar frames: </label>
+					<input type="checkbox" name="interpolate" id="interpolate" class="checkbox checkbox-primary" x-model="optimizationInterpolation" :disabled="isProcessing">
 				</div>
 			</div>
 
-			<div class="w-full md:w-auto">
+			<div class="w-full md:w-auto mt-5">
 				<button @click="startRecording" class="btn btn-primary" :disabled="isProcessing || selectedModelSize === undefined">
 					<span>Ejecutar</span>
 				</button>

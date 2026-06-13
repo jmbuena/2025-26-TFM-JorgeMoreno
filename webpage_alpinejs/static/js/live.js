@@ -67,6 +67,7 @@ document.addEventListener('alpine:init', () => {
 		faceAlignment: undefined,
 		resolutionScaling: 1,
 		resolution: undefined,
+		optimizationInterpolation: false,
 
 		async init() {
 			faceAlignmentPromise.then((faceAlignment) => {
@@ -146,6 +147,10 @@ document.addEventListener('alpine:init', () => {
 
 			this.lastFrameTime = performance.now();
 
+			const frameProcessingMethod = this.optimizationInterpolation
+				? new InterpoledFrameProcessing(selectedModel, loadedModel, canvasContext, width, height)
+				: new SimpleFrameProcessing(selectedModel, loadedModel, canvasContext, width, height);
+
 			while (true) {
 				const { done, value } = await reader.read();
 
@@ -175,29 +180,197 @@ document.addEventListener('alpine:init', () => {
 
 					const imageData = context.getImageData(0, 0, width, height);
 
-					const result = await runModels(selectedModel, loadedModel, imageData, imageRescale, 4)
-						.catch((e) => {
-							console.error("Error trying to run the model...", e);
+					frameProcessingMethod.process(imageData, value, this.frames, imageRescale);
 
-							return undefined;
-						});
-					
 					this.frames++;
-
-					if (!result) {
-						canvasContext.drawImage(await createImageBitmap(imageData), 0, 0, width, height);
-						value.close();
-
-						continue;
-					}
-
-					canvasContext.drawImage(await createImageBitmap(result.imageData), 0, 0, width, height);
-					value.close();
 				}
 			}
 		}
 	}));
 });
+
+
+class SimpleFrameProcessing {
+	constructor(
+		selectedModel,
+		loadedModel,
+		canvasContext,
+		width,
+		height,
+	) {
+		this.selectedModel = selectedModel;
+		this.loadedModel = loadedModel;
+		this.canvasContext = canvasContext;
+		this.width = width;
+		this.height = height;
+	}
+
+	async process(frameImageData, frame, _frameNumber, imageRescale) {
+		const result = await runModels(this.selectedModel, this.loadedModel, frameImageData, imageRescale, 4)
+			.catch((e) => {
+				console.error("Error trying to run the model...", e);
+
+				return undefined;
+			});
+	
+		if (!result) {
+			this.canvasContext.drawImage(await createImageBitmap(frameImageData), 0, 0, this.width, this.height);
+		} else {
+			this.canvasContext.drawImage(await createImageBitmap(result.imageData), 0, 0, this.width, this.height);
+		}
+
+		frame.close();
+	}
+}
+
+
+class InterpoledFrameProcessing {
+	constructor(
+		selectedModel,
+		loadedModel,
+		canvasContext,
+		width,
+		height,
+	) {
+		this.selectedModel = selectedModel;
+		this.loadedModel = loadedModel;
+		this.frameQueue = [];
+		this.processesFrameQueues = [];
+		this.canvasContext = canvasContext;
+		this.width = width;
+		this.height = height;
+	}
+
+	async process(frameImageData, frame, frameNumber, imageRescale) {
+		// First frame, process it and store it
+		// Second frame, store imageData
+		// Third frame, process it, store it, and show the first frame
+		// Fourth frame, interpolate first and third frames over the second frame, show second frame
+		// Fifth frame, process frame, store it, and show the third frame
+
+		if (frameNumber === 0) { // First frame
+			const result = await runModelsLazy(this.selectedModel, this.loadedModel, frameImageData, imageRescale, 4)
+				.catch((e) => {
+					console.error("Error trying to run the model...", e);
+
+					return undefined;
+				});
+			
+			if (result === undefined) {
+				this.frameQueue.push({
+					ok: false,
+					imageData: frameImageData,
+				});
+			} else {
+				this.frameQueue.push({
+					ok: true,
+					...result,
+				});
+			}
+		} else if (frameNumber === 1) { // Second frame
+			this.frameQueue.push({
+				ok: false,
+				imageData: frameImageData,
+			});
+		} else if (frameNumber % 2 === 0) { // Even frames > 1
+			const result = await runModelsLazy(this.selectedModel, this.loadedModel, frameImageData, imageRescale, 4)
+				.catch((e) => {
+					console.error("Error trying to run the model...", e);
+
+					return undefined;
+				});
+			
+			if (result === undefined) {
+				this.frameQueue.push({
+					ok: false,
+					imageData: frameImageData,
+				});
+			} else {
+				this.frameQueue.push({
+					ok: true,
+					...result,
+				});
+			}
+
+			this.frameQueue.push({
+				ok: true,
+				...result,
+			});
+
+			const firstFrameData = this.frameQueue.at(0);
+			
+			this.canvasContext.drawImage(await createImageBitmap(firstFrameData.imageData), 0, 0, this.width, this.height);
+		} else { // Odd frames > 2
+			const firstFrameData = this.frameQueue.shift();
+			const secondFrameData = this.frameQueue.shift();
+			const thirdFrameData = this.frameQueue.at(0);
+
+			// We can interpolate
+			if (firstFrameData.ok && thirdFrameData.ok) {
+				const secondFrameInterpolatedLandmarks = new Uint8Array(firstFrameData.landmarks.length);
+				for (let i = 0; i < firstFrameData.landmarks.length; i++) {
+					secondFrameInterpolatedLandmarks[i] =
+						(firstFrameData.landmarks[i] + thirdFrameData.landmarks[i]) / 2;
+				}
+
+				const color = colors[0];
+				const pointSizeRelative = Math.max(1, (faceData.mat.size().width / 800) * pointSize);
+
+				faceAlignment.drawFacePointsWithOffset(originalMat, faceData.mat, modelResults.output, faceData.offset, color, pointSizeRelative);
+			}
+
+			if (firstFrameData.ok) {
+				firstFrameData.cleanup();
+			}
+
+			if (secondFrameData.ok) {
+				firstFrameData.cleanup();
+			}
+		}
+
+		
+
+		// if (frameNumber % 2 !== 0) {
+		// 	// Los frames impares procesan los modelos
+		// 	const result = await runModelsLazy(this.selectedModel, this.loadedModel, frameImageData, imageRescale, 4)
+		// 		.catch((e) => {
+		// 			console.error("Error trying to run the model...", e);
+
+		// 			return undefined;
+		// 		});
+
+		// 	this.frameQueue.push(result);
+
+		// 	if (this.frameQueue.length === 3) {
+		// 		const firstFrameInQueue = this.frameQueue.at(0);
+
+		// 		this.canvasContext.drawImage(await createImageBitmap(firstFrameInQueue), 0, 0, this.width, this.height);
+		// 	}
+		// } else {
+		// 	// Los frames pares calculan la interpolación de los frames impares (si hubiera suficientes)
+		// 	if (this.frameQueue.length === 2) {
+		// 		const firstFrameInQueue = this.frameQueue.shift();
+		// 		const secondFrameInQueue = this.frameQueue.shift();
+		// 		const thirdFrameInQueue = this.frameQueue.at(0);
+
+		// 		const secondFrameLandmarks = new Uint8Array(firstFrameInQueue.landmarks.length);
+
+		// 		for (let i = 0; i < firstFrameInQueue.landmarks.length; i++) {
+		// 			secondFrameLandmarks[i] = (firstFrameInQueue.landmarks[i] + thirdFrameInQueue.landmarks[i]) / 2;
+		// 		}
+
+		// 		this.canvasContext.drawImage(await createImageBitmap(secondFrameInQueue.imageData), 0, 0, this.width, this.height);
+
+		// 		firstFrameInQueue.cleanup();
+		// 		secondFrameInQueue.cleanup();
+		// 	}
+
+		// 	this.frameQueue.push(frameImageData);
+		// }
+
+		// frame.close();
+	}
+}
 
 
 async function downloadAndLoadHaar(faceAlignment, haarPath) {
@@ -299,5 +472,65 @@ async function runModels(modelData, loadedModel, imageData, imageRescale, pointS
 	return {
 		elapsed: modelResults.elapsed.toFixed(2),
 		imageData: paintedImageData,
+		landmarks: modelResults.output,
+	};
+}
+
+
+async function runModelsLazy(modelData, loadedModel, imageData, imageRescale, pointSize = 3) {
+	const faceAlignment = await faceAlignmentPromise;
+
+	let originalMat = faceAlignment.imageDataToMat(imageData);
+	
+	if (imageRescale !== undefined) {
+		const unusedOriginalMat = originalMat;
+		originalMat = faceAlignment.resizeImage(originalMat, imageRescale);
+		unusedOriginalMat.delete();
 	}
+
+	const faceData = faceAlignment.detectFace(originalMat);
+
+	if (!faceData || !faceData.mat) {
+		originalMat.delete();
+
+		return undefined;
+	}
+
+	const { size } = modelData;
+
+	const faceResized = faceAlignment.resizeImage(faceData.mat, [size, size]);
+
+	const imageTensor = faceAlignment.imageDataToTensor(faceAlignment.matToImageData(faceResized));
+
+	const modelResults = await loadedModel.runModel(imageTensor);
+
+	faceResized.delete();
+	imageTensor.dispose();
+
+	if (!modelResults) {
+		originalMat.delete();
+		faceData.mat.delete();
+
+		return undefined;
+	}
+
+	const color = colors[0]
+
+	const pointSizeRelative = Math.max(1, (faceData.mat.size().width / 800) * pointSize);
+
+	faceAlignment.drawFacePointsWithOffset(originalMat, faceData.mat, modelResults.output, faceData.offset, color, pointSizeRelative);
+
+	const paintedImageData = faceAlignment.matToImageData(originalMat);
+	
+	return {
+		elapsed: modelResults.elapsed.toFixed(2),
+		imageData: paintedImageData,
+		landmarks: modelResults.output,
+		faceData,
+		originalMat,
+		cleanup() {
+			faceData.mat.delete();
+			originalMat.delete();
+		},
+	};
 }
