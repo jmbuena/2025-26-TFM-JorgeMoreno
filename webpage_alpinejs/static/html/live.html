@@ -15,7 +15,7 @@
 <body>
 
 <div x-data="live" class="p-5 flex flex-col gap-y-5">
-	<h1 class="text-3xl">Facial alignment</h1>
+	<h1><a href="/" class="text-3xl">ESTUDIO DEL RENDIMIENTO DE DETECTORES DE LANDMARKS FACIALES EN EL NAVEGADOR WEB</a></h1>
 	<h2 class="text-xl">TFM Jorge Moreno</h2>
 
 	<template x-if="hasLoaded">
@@ -70,6 +70,10 @@
 				<span x-show="isProcessing && downloadingModel" class="">
 					<span class="loading loading-spinner loading-sm"></span>
 					Descargando el modelo...
+				</span>
+
+				<span x-show="isProcessing && !downloadingModel" class="ml-2 label">
+					<span x-text="selectedModelName + ' (' + selectedModelSize + 'px)'"></span>
 				</span>
 			</div>
 

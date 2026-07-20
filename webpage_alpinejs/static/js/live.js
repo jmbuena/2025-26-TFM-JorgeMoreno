@@ -240,11 +240,13 @@ async function prepareLibraries() {
 
 
 async function prepareModel(modelPath, useGpu, faceAlignment) {
-	const loadedModel = loadedModels[modelPath] !== undefined
-		? loadedModels[modelPath]
+	const modelUniqueString = `${modelPath}:${useGpu}`;
+
+	const loadedModel = loadedModels[modelUniqueString] !== undefined
+		? loadedModels[modelUniqueString]
 		: await faceAlignment.loadModel(`/models/${modelPath}.onnx`, useGpu, "ort/");
 
-	loadedModels[modelPath] = loadedModel;
+	loadedModels[modelUniqueString] = loadedModel;
 
 	return loadedModel;
 }
